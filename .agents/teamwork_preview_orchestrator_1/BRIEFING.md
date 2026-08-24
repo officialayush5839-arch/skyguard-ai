@@ -63,12 +63,15 @@ Orchestrate the development of SkyGuard AI (Phases 0 to 22 per TODO.md): complet
 | m3_challenger_1 | teamwork_preview_challenger | Streaming Stress Testing | completed | 32ee4de5-2523-4548-bac8-df6d0c19a597 |
 | m3_challenger_2 | teamwork_preview_challenger | Payload & Edge Stress Testing | completed | 5cebea48-fdc7-4bee-8149-51737ac9ebfb |
 | m3_auditor_1 | teamwork_preview_auditor | Forensic Integrity Audit | completed | a697bf9d-d738-4208-b795-7ee0dba0548f |
-| m3_worker_2 | teamwork_preview_worker | M3 Remediation Implementation | in-progress | e1ebf3e2-aed2-4665-bf2b-2799b7bdaadd |
+| m3_worker_2 | teamwork_preview_worker | M3 Remediation Implementation | replaced | e1ebf3e2-aed2-4665-bf2b-2799b7bdaadd |
+| m3_reviewer_3 | teamwork_preview_reviewer | M3 Remediation Review | in-progress | 91fc852c-bc61-4e46-b3bb-f499b6ffd2de |
+| m3_challenger_3 | teamwork_preview_challenger | M3 Remediation Challenge | in-progress | c0cc22df-e108-4c12-97c5-c9ccadc48029 |
+| m3_auditor_2 | teamwork_preview_auditor | Forensic Audit 2 | in-progress | 992ee069-ca32-4147-bd5a-a3c7eaf81abe |
 
 ## Succession Status
 - Succession required: no
-- Spawn count: 10 / 16
-- Pending subagents: e1ebf3e2-aed2-4665-bf2b-2799b7bdaadd
+- Spawn count: 13 / 16
+- Pending subagents: 91fc852c-bc61-4e46-b3bb-f499b6ffd2de, c0cc22df-e108-4c12-97c5-c9ccadc48029, 992ee069-ca32-4147-bd5a-a3c7eaf81abe
 - Predecessor: none
 - Successor: not yet spawned
 

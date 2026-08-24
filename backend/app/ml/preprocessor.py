@@ -222,9 +222,18 @@ class DataPreprocessor:
         recent_p = list(buf.pressures)[-k:]
         recent_rh = list(buf.humidities)[-k:]
 
-        std_t = float(np.std(recent_t)) if k > 1 else 0.0
-        std_p = float(np.std(recent_p)) if k > 1 else 0.0
-        std_rh = float(np.std(recent_rh)) if k > 1 else 0.0
+        if k > 1:
+            std_t = float(np.std(recent_t))
+            std_p = float(np.std(recent_p))
+            std_rh = float(np.std(recent_rh))
+        elif self.is_fitted and hasattr(self.scaler, "mean_") and len(self.scaler.mean_) >= 9:
+            std_t = float(self.scaler.mean_[6])
+            std_p = float(self.scaler.mean_[7])
+            std_rh = float(self.scaler.mean_[8])
+        else:
+            std_t = 0.0
+            std_p = 0.0
+            std_rh = 0.0
 
         td = calculate_magnus_dew_point(temperature, humidity)
 
