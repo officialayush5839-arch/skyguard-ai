@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "trained_at": "2026-08-24T06:10:30.292604+00:00",
+  "trained_at": "2026-08-24T18:45:27.503330+00:00",
   "train_samples": 5760,
   "val_samples": 1440,
   "features": [
@@ -14,9 +14,9 @@
     "press_roll_std",
     "humid_roll_std"
   ],
-  "temporal_threshold": 0.03273988561704755,
-  "temporal_mean_mse": 0.010794533416628838,
-  "temporal_std_mse": 0.00731511740013957,
+  "temporal_threshold": 0.028376912232488394,
+  "temporal_mean_mse": 0.00890900194644928,
+  "temporal_std_mse": 0.006489303428679705,
   "isolation_forest_n_trees": 100,
   "autoencoder_latent_dim": 16,
   "mahalanobis_df": 3

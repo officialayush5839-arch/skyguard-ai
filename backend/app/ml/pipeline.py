@@ -333,3 +333,15 @@ class SkyGuardPipeline:
         """Resets sliding state and health tracking for a station."""
         self.preprocessor.reset_station(station_id)
         self.tier5_health.reset_station(station_id)
+
+    def reset(self) -> None:
+        """Resets all rolling buffers and stations."""
+        self.preprocessor = DataPreprocessor(window_size=getattr(settings, "INFERENCE_WINDOW_SIZE", 30))
+        self.tier1 = Tier1QC()
+        self.tier5_health = SensorHealthEngine(
+            window_size=getattr(settings, "HEALTH_ROLLING_WINDOW", 288),
+            ema_alpha=getattr(settings, "HEALTH_EMA_ALPHA", 0.10),
+        )
+
+
+AnomalyPipelineOrchestrator = SkyGuardPipeline

@@ -249,9 +249,15 @@ class Tier3MultivariateDetector:
         )
 
         # 2. Mahalanobis distance & Chi-square CDF
-        d_m, d_sq, mahal_score = self.evaluate_mahalanobis(temperature, pressure, humidity)
+        d_m, d_sq, p_val = self.evaluate_mahalanobis(temperature, pressure, humidity)
+        # Calibrate anomaly score: normal points within 99% confidence ellipsoid (p_val < 0.99) have score = 0.0
+        # Points exceeding 99th percentile scale smoothly to 1.0
+        if p_val < 0.99:
+            mahal_score = 0.0
+        else:
+            mahal_score = min(1.0, (p_val - 0.99) / 0.01)
 
-        # 3. Unified Tier 3 score
+        # 3. Unified Tier 3 score (thermodynamic Clausius-Clapeyron violation or extreme multivariate covariance distance)
         tier3_score = max(thermo_score, mahal_score)
 
         diag = {

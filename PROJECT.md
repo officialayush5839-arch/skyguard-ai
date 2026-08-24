@@ -64,10 +64,10 @@ The architecture comprises:
 | M0 | Project Scaffolding & Config | Phase 0: Directories, dependencies, configs, test baseline | none | DONE |
 | M1 | Simulator & Anomaly Injector | Phases 1–4: Diurnal generator, 6 injectors, scenarios, CLI | M0 | DONE |
 | M2 | 5-Tier ML Pipeline Engine | Phases 5–10: Tier 1 QC, Tier 2 ML, Tier 3 Physics, Tier 4 Classifier, Tier 5 Health & SHAP, Fusion | M1 | DONE |
-| M3 | Database & Backend Services | Phases 11, 13, 14: SQLite, FastAPI REST, WebSocket, Real-time ingestion | M2 | IN_PROGRESS |
-| M4 | Frontend Operational Dashboard | Phases 15–18: 7 views, Recharts, Anomaly UI, Explainability UI | M3 | PLANNED |
-| M5 | Comprehensive Testing & Docs | Phases 19, 21, 22: Tests (>=50), Benchmark (F1>=0.80), Docker, Docs | M4 | PLANNED |
-| E2E | E2E Testing Track | Test harness, Tiers 1-4 test suite, publishes TEST_READY.md | M0 | PLANNED |
+| M3 | Database & Backend Services | Phases 11, 13, 14: SQLite, FastAPI REST, WebSocket, Real-time ingestion | M2 | DONE |
+| M4 | Frontend Operational Dashboard | Phases 15–18: 7 views, Recharts, Anomaly UI, Explainability UI | M3 | DONE |
+| M5 | Comprehensive Testing & Docs | Phases 19, 21, 22: Tests (>=50), Benchmark (F1>=0.80), Docker, Docs | M4 | IN_PROGRESS |
+| E2E | E2E Testing Track | Test harness, Tiers 1-4 test suite, publishes TEST_READY.md | M0 | DONE |
 
 ---
 

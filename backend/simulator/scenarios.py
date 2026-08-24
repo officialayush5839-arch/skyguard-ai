@@ -235,10 +235,23 @@ class MultiFaultStressScenario(BenchmarkScenario):
         s6 = min(int(6624 * scale), n_rows - 30)
         injector.inject_multivariate_inconsistency(start_idx=s6, duration=30, temp_shift=14.0, rh_shift=45.0, severity="HIGH", random_seed=seed)
 
-        # Day 27: Compound pressure drop followed by dropout
-        s7 = min(int(7776 * scale), n_rows - 25)
-        injector.inject_spike(target_column="pressure", start_idx=s7, magnitude=-35.0, duration=1, severity="CRITICAL", random_seed=seed)
-        injector.inject_dropout(target_column="humidity", start_idx=s7 + 2, duration=18, fill_mode="nan", severity="HIGH", random_seed=seed)
+        # Day 26 (Test Partition): Thermal Spike + Stuck/Frozen Sensor
+        s7 = min(int(7488 * scale), n_rows - 35)
+        injector.inject_spike(target_column="temperature", start_idx=s7, magnitude=22.0, duration=3, severity="CRITICAL", random_seed=seed)
+        injector.inject_frozen(target_column="temperature", start_idx=s7 + 10, duration=25, stuck_value=24.5, severity="HIGH", random_seed=seed)
+
+        # Day 27 (Test Partition): Compound pressure drop followed by dropout
+        s8 = min(int(7776 * scale), n_rows - 30)
+        injector.inject_spike(target_column="pressure", start_idx=s8, magnitude=-35.0, duration=2, severity="CRITICAL", random_seed=seed)
+        injector.inject_dropout(target_column="humidity", start_idx=s8 + 4, duration=24, fill_mode="nan", severity="HIGH", random_seed=seed)
+
+        # Day 28 (Test Partition): Multivariate inconsistency
+        s9 = min(int(8064 * scale), n_rows - 30)
+        injector.inject_multivariate_inconsistency(start_idx=s9, duration=28, temp_shift=15.0, rh_shift=50.0, severity="HIGH", random_seed=seed)
+
+        # Day 29 (Test Partition): Progressive Temperature Calibration Drift
+        s10 = min(int(8352 * scale), n_rows - 40)
+        injector.inject_drift(target_column="temperature", start_idx=s10, duration=40, drift_rate=0.15, max_drift=6.0, severity="HIGH", random_seed=seed)
 
         return injector.get_dataframe()
 
