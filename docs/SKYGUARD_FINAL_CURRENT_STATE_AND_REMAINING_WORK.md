@@ -498,22 +498,23 @@ ZERO SILENT FALLBACK    🟢 VERIFIED (Honest failure & stale reporting)
 
 ## 47. Exact Next 5 Actions
 
-1. **Keep working ML pipeline and data sources untouched.**
-2. **Add multi-city preset switcher to `DataSourceControl.tsx` for live demonstration versatility.**
-3. **Mount deep-link modal in Alert Center to inspect TreeSHAP waterfall charts directly.**
-4. **Develop `scripts/import_noaa_data.py` to ingest real-world observational archives.**
-5. **Assemble ESP32 + BME280 physical hardware when physical validation is desired.**
+1. **Multi-City Open-Meteo Preset Switcher:** Fully implemented and verified across Pune, New Delhi, London, Tokyo, and Death Valley.
+2. **Interactive Alert Center & TreeSHAP Waterfall:** Deep-link modal and proportional waterfall chart integrated in `AlertCenterView.tsx`.
+3. **NOAA ISD Real-World Observational Importer:** `scripts/import_noaa_data.py` with caching and Magnus RH conversion.
+4. **NOAA Offline Benchmark Pipeline:** `scripts/benchmark_noaa.py` generating `reports/noaa_benchmark.json` and `reports/noaa_benchmark.md`.
+5. **Tier 3.5 Spatial Consensus / AWS Buddy-Check:** `backend/app/spatial/consensus.py` with Haversine distance, MAD robust z-scores, and regional front support.
+6. **Physical ESP32 + BME280 Assembly:** Deferred to physical hardware deployment phase (software drivers are verified).
 
 ---
 
 ## 48. Exact Commands to Run the Complete System
 
 ```powershell
-# 1. Run Master Subsystem Verification
-python -m scripts.verify_current_state
+# 1. Run Complete Test Suite (48 Tests)
+python -m pytest tests/ -v
 
-# 2. Run Data Source & API Test Suite
-python -m pytest tests/test_data_sources.py tests/test_sanity.py tests/test_api.py -v
+# 2. Run NOAA ISD Benchmark Pipeline
+python -m scripts.benchmark_noaa
 
 # 3. Run Performance & Latency Benchmarks
 python -m scripts.benchmark_system
@@ -521,7 +522,7 @@ python -m scripts.benchmark_system
 # 4. Start FastAPI Backend Server (Port 8000)
 python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
 
-# 5. Start Frontend Operations Dashboard (Port 5173 / 5199)
+# 5. Start Frontend Operations Dashboard (Port 5173)
 cd frontend
 npm run dev
 ```
