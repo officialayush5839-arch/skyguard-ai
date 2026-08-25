@@ -98,11 +98,28 @@ async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """Creates all database tables and seeds default stations if empty."""
+    """Creates all database tables, applies non-breaking schema migrations, and seeds default stations if empty."""
     from backend.app.db import models  # noqa: F401
+    from sqlalchemy import text
     
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        
+        # Check and safely add new columns to existing SQLite tables if missing
+        migration_statements = [
+            "ALTER TABLE observations ADD COLUMN source_type VARCHAR(32) DEFAULT 'SIMULATED';",
+            "ALTER TABLE observations ADD COLUMN source_id VARCHAR(64);",
+            "ALTER TABLE observations ADD COLUMN provider VARCHAR(64);",
+            "ALTER TABLE observations ADD COLUMN device_id VARCHAR(64);",
+            "ALTER TABLE anomaly_events ADD COLUMN source_type VARCHAR(32) DEFAULT 'SIMULATED';",
+            "ALTER TABLE anomaly_events ADD COLUMN source_id VARCHAR(64);",
+        ]
+        for stmt in migration_statements:
+            try:
+                await conn.execute(text(stmt))
+            except Exception:
+                # Column already exists
+                pass
     
     # Seed default AWS stations if database is freshly initialized
     async with get_db_context() as session:

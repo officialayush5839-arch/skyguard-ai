@@ -566,3 +566,75 @@ async def adhoc_infer(
             multivariate_diagnostics=inf_res.multivariate_diagnostics,
             raw_values=inf_res.raw_values,
         )
+
+
+# ---------------------------------------------------------------------------
+# 9. Data Source Management Endpoints
+# ---------------------------------------------------------------------------
+from backend.app.schemas.canonical import (
+    DataSourceListResponse,
+    DataSourceSelectRequest,
+    DataSourceStatus,
+    DataSourceType,
+)
+from backend.app.sources.manager import data_source_manager
+
+
+@router.get("/data-sources", response_model=DataSourceListResponse, summary="List all registered data sources and runtime status")
+async def list_data_sources():
+    """Retrieves all available telemetry sources (Simulator, Open-Meteo, Physical MQTT) and connection health."""
+    return await data_source_manager.list_sources()
+
+
+@router.get("/data-sources/status", response_model=DataSourceStatus, summary="Get active data source status")
+async def get_active_data_source_status():
+    """Returns the operational status, packet count, latency, and data age of the currently active source."""
+    return await data_source_manager.get_active_status()
+
+
+@router.post("/data-sources/select", response_model=DataSourceStatus, summary="Switch active telemetry data source")
+async def select_data_source(req: DataSourceSelectRequest):
+    """Gracefully switches the active telemetry data source without disrupting ML pipelines."""
+    try:
+        return await data_source_manager.select_source(req)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error("Error switching data source: %s", e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.get("/data-sources/external/preview", summary="Live test fetch from Open-Meteo External API")
+async def preview_external_weather_feed():
+    """Executes an immediate live test query to Open-Meteo API to test connectivity and view current readings."""
+    ext_source = data_source_manager.get_source(DataSourceType.EXTERNAL_API)
+    if not ext_source:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="External weather adapter not found.")
+    try:
+        telemetry = await ext_source.fetch_live_observation()
+        return {
+            "success": True,
+            "provider": "Open-Meteo",
+            "telemetry": telemetry.model_dump(),
+        }
+    except Exception as e:
+        logger.error("External weather preview failed: %s", e)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Open-Meteo fetch failed: {e}")
+
+
+@router.post("/data-sources/physical/virtual-packet", response_model=InferenceResultSchema, summary="Ingest virtual hardware packet for physical testing")
+async def ingest_virtual_physical_packet(payload: Dict[str, Any]):
+    """Allows developers and tests to inject a physical ESP32/BME280 formatted packet directly into the pipeline."""
+    phy_source = data_source_manager.get_source(DataSourceType.PHYSICAL_AWS)
+    if not phy_source:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Physical AWS adapter not found.")
+    try:
+        canonical = await phy_source.ingest_virtual_packet(payload)
+        res = await ingestion_service.ingest_observation(canonical.to_ml_input_dict(), save_db=True, broadcast=True)
+        return res.inference
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error("Virtual physical packet ingestion failed: %s", e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+

@@ -30,17 +30,18 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized successfully.")
 
-    # Auto-start real-time simulation so telemetry streams immediately upon launch
+    # Auto-start configured default data source so telemetry streams immediately upon launch
+    from backend.app.sources.manager import data_source_manager
     try:
-        await simulation_service.start(interval_seconds=2.0)
-        logger.info("Real-time telemetry simulation engine auto-started.")
+        await data_source_manager.start()
+        logger.info("Telemetry data source manager auto-started.")
     except Exception as exc:
-        logger.warning("Simulation auto-start warning: %s", exc)
+        logger.warning("Data source manager auto-start warning: %s", exc)
 
     yield
 
     logger.info("Shutting down %s services...", settings.PROJECT_NAME)
-    await simulation_service.stop()
+    await data_source_manager.stop()
     await close_db()
     logger.info("Cleanup complete.")
 

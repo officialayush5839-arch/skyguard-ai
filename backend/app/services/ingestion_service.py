@@ -177,6 +177,10 @@ class IngestionService:
                         "pressure": float_p,
                         "humidity": float_rh,
                         "validation_status": "QC_FLAGGED" if qc_flag else "VALID",
+                        "source_type": data.get("source_type", "SIMULATED"),
+                        "source_id": data.get("source_id", "diurnal_generator"),
+                        "provider": data.get("provider"),
+                        "device_id": data.get("device_id"),
                     })
                     obs_id = obs_db.id
 
@@ -193,6 +197,8 @@ class IngestionService:
                             "anomaly_type": inference_res.classification,
                             "classification": inference_res.classification,
                             "is_fault": inference_res.is_fault,
+                            "source_type": data.get("source_type", "SIMULATED"),
+                            "source_id": data.get("source_id", "diurnal_generator"),
                             "reason": inference_res.reason,
                             "explanation": inference_res.explanation.model_dump(),
                             "tier_scores": inference_res.tier_scores.model_dump(),
@@ -222,6 +228,35 @@ class IngestionService:
                     )
                     await station_repo.update_status(station_id, new_station_status)
                     persisted = True
+
+            # Broadcast via WebSocket if requested
+            if broadcast:
+                broadcast_data = inf_schema.model_dump()
+                broadcast_data["temperature"] = float_t
+                broadcast_data["pressure"] = float_p
+                broadcast_data["humidity"] = float_rh
+                broadcast_data["source"] = {
+                    "type": data.get("source_type", "SIMULATED"),
+                    "id": data.get("source_id", "diurnal_generator"),
+                    "provider": data.get("provider", "SkyGuard-DiurnalEngine"),
+                    "device_id": data.get("device_id"),
+                }
+                await ws_manager.broadcast_observation(station_id, broadcast_data)
+
+                # Send explicit alert notification for severe anomalies
+                if inference_res.is_anomaly and inference_res.severity in ["HIGH", "CRITICAL"]:
+                    await ws_manager.broadcast_alert(
+                        station_id=station_id,
+                        severity=inference_res.severity,
+                        message_text=f"{inference_res.classification}: {inference_res.reason}",
+                        details={
+                            "anomaly_score": inference_res.anomaly_score,
+                            "confidence": inference_res.confidence,
+                            "classification": inference_res.classification,
+                            "recommended_action": inference_res.recommended_action,
+                            "source_type": data.get("source_type", "SIMULATED"),
+                        },
+                    )
 
             # Construct ObservationResponse
             obs_resp = ObservationResponse(

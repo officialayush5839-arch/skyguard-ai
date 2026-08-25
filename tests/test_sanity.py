@@ -14,8 +14,8 @@ async def test_health_check_endpoint(async_client):
     response = await async_client.get("/api/health")
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "healthy"
-    assert data["service"] == "backend"
+    assert "total_stations" in data
+    assert "active_stations" in data
 
 def test_settings_load():
     assert settings.PROJECT_NAME == "SkyGuard AI"

@@ -55,6 +55,52 @@ export interface InferenceResult {
   temperature?: number;
   pressure?: number;
   humidity?: number;
+  source?: {
+    type: 'SIMULATED' | 'EXTERNAL_API' | 'PHYSICAL_AWS';
+    id: string;
+    provider?: string;
+    device_id?: string;
+  };
+}
+
+export type DataSourceType = 'SIMULATED' | 'EXTERNAL_API' | 'PHYSICAL_AWS';
+
+export type SourceConnectionStatus =
+  | 'CONNECTED'
+  | 'RUNNING'
+  | 'DEGRADED'
+  | 'DISCONNECTED'
+  | 'CONNECTING'
+  | 'STOPPED'
+  | 'ERROR';
+
+export interface DataSourceStatus {
+  source_type: DataSourceType;
+  source_id: string;
+  name: string;
+  description: string;
+  status: SourceConnectionStatus;
+  is_active: boolean;
+  is_available: boolean;
+  station_id: string;
+  provider?: string;
+  last_received_at?: string;
+  last_successful_fetch?: string;
+  last_error_at?: string;
+  error_message?: string;
+  data_age_seconds?: number;
+  is_stale: boolean;
+  packet_count: number;
+  polling_interval_seconds?: number;
+  coordinates?: { latitude: number; longitude: number };
+  metadata?: Record<string, any>;
+}
+
+export interface DataSourceListResponse {
+  active_source: DataSourceType;
+  active_source_id: string;
+  sources: DataSourceStatus[];
+  timestamp: string;
 }
 
 export interface Station {

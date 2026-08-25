@@ -20,6 +20,7 @@ import { EventDetailView } from './components/EventDetailView';
 import { DataExplorerView } from './components/DataExplorerView';
 import { AnomalyInjectorUI } from './components/AnomalyInjectorUI';
 import { ExplainabilityViewer } from './components/ExplainabilityViewer';
+import { DataSourceControl } from './components/DataSourceControl';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<
@@ -70,6 +71,34 @@ export default function App() {
     { id: 'explainability', label: 'Explainability (XAI)', icon: Layers },
   ];
 
+  const getSourceBadge = () => {
+    const srcType = latestTelemetry?.source?.type || 'SIMULATED';
+    switch (srcType) {
+      case 'PHYSICAL_AWS':
+        return (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-semibold bg-emerald-500/10 border-emerald-500/30 text-emerald-400">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>PHYSICAL AWS: ESP32</span>
+          </div>
+        );
+      case 'EXTERNAL_API':
+        return (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-semibold bg-sky-500/10 border-sky-500/30 text-sky-400">
+            <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+            <span>EXTERNAL: Open-Meteo</span>
+          </div>
+        );
+      case 'SIMULATED':
+      default:
+        return (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-semibold bg-amber-500/10 border-amber-500/30 text-amber-400">
+            <span className="w-2 h-2 rounded-full bg-amber-400" />
+            <span>SIMULATED LIVE</span>
+          </div>
+        );
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0B0F19] text-slate-100 flex flex-col font-sans selection:bg-sky-500/30 selection:text-sky-200">
       {/* Top Application Navigation Bar */}
@@ -84,7 +113,7 @@ export default function App() {
                 SkyGuard <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-indigo-400">AI</span>
               </h1>
               <span className="text-[10px] uppercase font-mono px-2 py-0.5 bg-slate-800 text-sky-300 rounded border border-slate-700 font-semibold">
-                v0.1.0 PRO
+                v0.2.0 PRO
               </span>
             </div>
             <p className="text-[11px] text-slate-400 font-medium">
@@ -94,7 +123,10 @@ export default function App() {
         </div>
 
         {/* System Status Indicators */}
-        <div className="flex items-center gap-4 text-xs font-mono">
+        <div className="flex items-center gap-3 text-xs font-mono">
+          {/* Active Data Source Badge */}
+          {getSourceBadge()}
+
           {/* WebSocket Status */}
           <div
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-[11px] font-semibold transition-all ${
@@ -108,17 +140,7 @@ export default function App() {
                 isWsConnected ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'
               }`}
             />
-            {isWsConnected ? 'WS /ws/live STREAMING' : 'CONNECTING WS...'}
-          </div>
-
-          {/* Core Feature Badge */}
-          <div className="hidden md:flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-lg text-slate-400 text-[11px]">
-            <span>Sensors:</span>
-            <span className="text-amber-400 font-bold">T (°C)</span>
-            <span>•</span>
-            <span className="text-sky-400 font-bold">P (hPa)</span>
-            <span>•</span>
-            <span className="text-indigo-400 font-bold">RH (%)</span>
+            {isWsConnected ? 'WS STREAMING' : 'CONNECTING WS...'}
           </div>
         </div>
       </header>
@@ -147,6 +169,9 @@ export default function App() {
 
       {/* Active Tab View Body */}
       <main className="flex-1 p-6 max-w-7xl w-full mx-auto">
+        {/* Global Three-Source Telemetry Controller */}
+        <DataSourceControl />
+
         {activeTab === 'overview' && (
           <OverviewView latestTelemetry={latestTelemetry} onNavigate={(tab) => setActiveTab(tab as any)} />
         )}

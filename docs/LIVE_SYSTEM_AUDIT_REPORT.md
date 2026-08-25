@@ -84,15 +84,25 @@ The system does **NOT** currently connect to external hardware AWS sensors (whic
 
 ---
 
-## 6. ML Verification Table
+## 6. ML Model Artifacts & Runtime Verification Table
 
-| Model File | Loaded? | Called in Inference? | Receives Live Data? | Produces Output? | Output Reaches Dashboard? |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `models/scaler.joblib` | Yes | Yes (`DataPreprocessor`) | Yes (Raw T, P, RH) | Scaled Vector `[0, 1]` | Yes |
-| `models/isolation_forest.joblib` | Yes | Yes (`IsolationForestPointDetector`) | Yes (Scaled Vector) | Anomaly Score `[0, 1]` | Yes (via Fusion) |
-| `models/temporal_autoencoder.pt` | Yes | Yes (`TemporalAutoencoderDetector`) | Yes (30-step Tensor) | Reconstruction MSE | Yes (via Fusion) |
-| `models/mahalanobis.joblib` | Yes | Yes (`Tier3MultivariateDetector`) | Yes (Raw T, P, RH) | Chi-square CDF / $D_M^2$ | Yes (via Fusion) |
-| `models/fault_classifier.joblib` | Yes | Yes (`FaultClassifier`) | Yes (Tier Scores & Buffer) | Classification Enum | Yes (Verdict Banner) |
+The `models/` directory contains **9 total filesystem items**:
+- **5 Core Active Machine Learning & Scaling Components**
+- **2 Dual-Compatibility Filename Aliases** (`autoencoder.pt` -> `temporal_autoencoder.pt`, `scaler.joblib` -> `preprocessor.joblib`)
+- **1 Training Metadata Configuration File** (`model_metadata.json`)
+- **1 Repository Placeholder File** (`.gitkeep`)
+
+| Artifact Filename | Model / Artifact Type | Tier | Loaded at Runtime? | Called in Live Inference? | Receives Telemetry? | Produces Output? | Output Consumed Downstream? | Role / Status |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `preprocessor.joblib` | StandardScaler & Sliding Window Preprocessor | Tier 1/2 Preprocessing | **YES** (`DataPreprocessor.load()`) | **YES** (`preprocessor.update()`) | YES (Raw T, P, RH) | Scaled vectors & 30-step tensors | Consumed by Tiers 2, 4, 5 & SHAP | **ACTIVE (Primary)** |
+| `scaler.joblib` | StandardScaler (Duplicate / Compatibility Alias) | Tier 1/2 Preprocessing | Fallback only | Fallback only | YES (if loaded) | Scaled vectors | Consumed by Tiers 2, 4, 5 | **ACTIVE (Alias of preprocessor.joblib)** |
+| `isolation_forest.joblib` | scikit-learn Isolation Forest (Point Outlier) | Tier 2 Point ML | **YES** (`IsolationForestPointDetector.load()`) | **YES** (`predict_score()`) | YES (Scaled feature vector) | Anomaly score $[0, 1]$ | Consumed by `AnomalyFusionEngine` | **ACTIVE (Primary)** |
+| `temporal_autoencoder.pt` | PyTorch GRU Recurrent Autoencoder | Tier 2 Temporal ML | **YES** (`TemporalAutoencoderDetector.load()`) | **YES** (`predict_score()`) | YES (30-step $(30, 3)$ sequence tensor) | Reconstruction MSE score $[0, 1]$ | Consumed by `AnomalyFusionEngine` | **ACTIVE (Primary)** |
+| `autoencoder.pt` | PyTorch GRU Autoencoder (Compatibility Alias) | Tier 2 Temporal ML | Fallback only | Fallback only | YES (if loaded) | Reconstruction MSE score | Consumed by `AnomalyFusionEngine` | **ACTIVE (Alias of temporal_autoencoder.pt)** |
+| `mahalanobis.joblib` | Empirical Mean, Covariance & Regularized Inversion | Tier 3 Multivariate | **YES** (`Tier3MultivariateDetector.load()`) | **YES** (`score_observation()`) | YES (Raw T, P, RH) | $D_M^2$ & Chi-Square CDF score | Consumed by `AnomalyFusionEngine` | **ACTIVE (Primary)** |
+| `fault_classifier.joblib` | scikit-learn Random Forest / Heuristic Classifier | Tier 4 Fault Taxonomy | **YES** (`FaultClassifier.load()`) | **YES** (`classify()`) | YES (Tier scores & sliding buffer) | `ClassificationResult` Enum | Consumed by UI Verdict & Alerts | **ACTIVE (Primary)** |
+| `model_metadata.json` | JSON Training Metadata & Hyperparameter Specs | Config / Metadata | **YES** (Metadata loader) | Inspectable via API | N/A (Config) | Hyperparameters & version info | Consumed by `/api/metrics` & docs | **ACTIVE (Metadata File)** |
+| `.gitkeep` | Git Directory Placeholder | Repository Infra | N/A (Not loaded) | No | No | No | No | **INACTIVE (Repo Tracking)** |
 
 ---
 

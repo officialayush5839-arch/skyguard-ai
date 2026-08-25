@@ -170,3 +170,46 @@ export async function uploadCSV(file: File): Promise<{
   });
   return handleResponse(res);
 }
+
+// ---------------------------------------------------------------------------
+// Data Source Management APIs
+// ---------------------------------------------------------------------------
+import { DataSourceListResponse, DataSourceStatus, DataSourceType } from '../types';
+
+export async function fetchDataSources(): Promise<DataSourceListResponse> {
+  const res = await fetch(`${API_BASE_URL}/data-sources`);
+  return handleResponse(res);
+}
+
+export async function fetchActiveDataSourceStatus(): Promise<DataSourceStatus> {
+  const res = await fetch(`${API_BASE_URL}/data-sources/status`);
+  return handleResponse(res);
+}
+
+export async function selectDataSource(sourceType: DataSourceType): Promise<DataSourceStatus> {
+  const res = await fetch(`${API_BASE_URL}/data-sources/select`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source_type: sourceType }),
+  });
+  return handleResponse(res);
+}
+
+export async function fetchExternalWeatherPreview(): Promise<{
+  success: boolean;
+  provider: string;
+  telemetry: any;
+}> {
+  const res = await fetch(`${API_BASE_URL}/data-sources/external/preview`);
+  return handleResponse(res);
+}
+
+export async function ingestVirtualPhysicalPacket(payload: Record<string, any>): Promise<InferenceResult> {
+  const res = await fetch(`${API_BASE_URL}/data-sources/physical/virtual-packet`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+}
+

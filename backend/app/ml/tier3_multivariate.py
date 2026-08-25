@@ -179,24 +179,25 @@ class Tier3MultivariateDetector:
         joblib.dump(artifact, path)
         logger.info("Saved Tier 3 Mahalanobis artifact to %s", path)
 
-    def load(self, filepath: Union[str, Path]) -> "Tier3MultivariateDetector":
+    @classmethod
+    def load(cls, filepath: Union[str, Path]) -> "Tier3MultivariateDetector":
         """Load fitted model artifact from joblib file."""
+        detector = cls() if isinstance(cls, type) else cls
         path = Path(filepath)
         if not path.exists():
             raise FileNotFoundError(f"Model artifact not found at {path}")
 
         artifact = joblib.load(path)
         cov = artifact.get("covariance", artifact.get("cov"))
-        self._set_parameters(artifact["mean"], cov)
-        self.features = artifact.get("features", self.features)
-        self.reg_lambda = artifact.get("regularization_lambda", self.reg_lambda)
-        self.fitted_samples = artifact.get("fitted_samples", 0)
-        return self
+        detector._set_parameters(artifact["mean"], cov)
+        detector.features = artifact.get("features", detector.features)
+        detector.reg_lambda = artifact.get("regularization_lambda", detector.reg_lambda)
+        detector.fitted_samples = artifact.get("fitted_samples", 0)
+        return detector
 
     @classmethod
     def load_from_file(cls, filepath: Union[str, Path]) -> "Tier3MultivariateDetector":
-        detector = cls()
-        return detector.load(filepath)
+        return cls.load(filepath)
 
     def evaluate_mahalanobis(
         self, temperature: float, pressure: float, humidity: float

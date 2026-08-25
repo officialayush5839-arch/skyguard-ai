@@ -68,6 +68,10 @@ class Observation(Base):
     pressure: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     humidity: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     validation_status: Mapped[str] = mapped_column(String(32), default="VALID", nullable=False)
+    source_type: Mapped[Optional[str]] = mapped_column(String(32), default="SIMULATED", nullable=True)
+    source_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    provider: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    device_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
     # Relationships
@@ -100,6 +104,8 @@ class AnomalyEvent(Base):
     anomaly_type: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     classification: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
     is_fault: Mapped[bool] = mapped_column(Boolean, default=True, index=True, nullable=False)
+    source_type: Mapped[Optional[str]] = mapped_column(String(32), default="SIMULATED", nullable=True)
+    source_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     explanation: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
     tier_scores: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
