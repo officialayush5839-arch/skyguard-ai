@@ -576,6 +576,7 @@ from backend.app.schemas.canonical import (
     DataSourceSelectRequest,
     DataSourceStatus,
     DataSourceType,
+    ExternalSourceConfigRequest,
 )
 from backend.app.sources.manager import data_source_manager
 
@@ -601,6 +602,21 @@ async def select_data_source(req: DataSourceSelectRequest):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error("Error switching data source: %s", e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.post("/data-sources/external/configure", response_model=DataSourceStatus, summary="Reconfigure geographic coordinates for Open-Meteo feed")
+async def configure_external_weather_source(req: ExternalSourceConfigRequest):
+    """Dynamically updates latitude, longitude, and station identity for Open-Meteo live weather queries."""
+    try:
+        return await data_source_manager.configure_external_source(
+            latitude=req.latitude,
+            longitude=req.longitude,
+            station_id=req.station_id,
+            station_name=req.station_name,
+        )
+    except Exception as e:
+        logger.error("Failed to reconfigure external weather source: %s", e)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 

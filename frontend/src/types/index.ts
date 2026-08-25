@@ -96,6 +96,79 @@ export interface DataSourceStatus {
   metadata?: Record<string, any>;
 }
 
+export interface CityPreset {
+  id: string;
+  name: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+  station_id: string;
+  description: string;
+}
+
+export const CITY_PRESETS: CityPreset[] = [
+  {
+    id: 'pune',
+    name: 'Pune',
+    country: 'India',
+    latitude: 18.5204,
+    longitude: 73.8567,
+    station_id: 'PUNE-EXT-001',
+    description: 'Deccan Plateau - Subtropical semi-arid climate',
+  },
+  {
+    id: 'delhi',
+    name: 'New Delhi',
+    country: 'India',
+    latitude: 28.6139,
+    longitude: 77.2090,
+    station_id: 'DELHI-EXT-001',
+    description: 'National Capital Region - Monsoon-influenced humid subtropical',
+  },
+  {
+    id: 'london',
+    name: 'London',
+    country: 'United Kingdom',
+    latitude: 51.5074,
+    longitude: -0.1278,
+    station_id: 'LONDON-EXT-001',
+    description: 'Temperate oceanic climate with frequent frontal systems',
+  },
+  {
+    id: 'tokyo',
+    name: 'Tokyo',
+    country: 'Japan',
+    latitude: 35.6762,
+    longitude: 139.6503,
+    station_id: 'TOKYO-EXT-001',
+    description: 'Humid subtropical coastal climate with maritime influence',
+  },
+  {
+    id: 'death_valley',
+    name: 'Death Valley',
+    country: 'United States',
+    latitude: 36.5323,
+    longitude: -116.9325,
+    station_id: 'DV-EXT-001',
+    description: 'Subtropical hot desert climate - Extreme high temperature regime',
+  },
+];
+
+export interface SpatialConsensusResult {
+  status: 'SUPPORTED' | 'ISOLATED' | 'INSUFFICIENT_DATA' | 'NO_COORDINATES';
+  neighbor_count: number;
+  radius_km: number;
+  temperature_deviation?: number;
+  pressure_deviation?: number;
+  humidity_deviation?: number;
+  temperature_robust_z?: number;
+  pressure_robust_z?: number;
+  humidity_robust_z?: number;
+  consensus_score: number;
+  regional_event_supported: boolean;
+  message?: string;
+}
+
 export interface DataSourceListResponse {
   active_source: DataSourceType;
   active_source_id: string;
@@ -132,8 +205,14 @@ export interface AnomalyEvent {
   reason?: string;
   explanation?: ExplanationResult;
   tier_scores?: TierScores;
+  sensor_health?: number;
   recommended_action?: string;
   raw_values?: Record<string, any>;
+  spatial_consensus?: SpatialConsensusResult;
+  source_type?: string;
+  source_id?: string;
+  provider?: string;
+  device_id?: string;
   created_at: string;
 }
 

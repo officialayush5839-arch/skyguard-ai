@@ -204,6 +204,20 @@ export async function fetchExternalWeatherPreview(): Promise<{
   return handleResponse(res);
 }
 
+export async function configureExternalWeatherSource(config: {
+  latitude: number;
+  longitude: number;
+  station_id?: string;
+  station_name?: string;
+}): Promise<DataSourceStatus> {
+  const res = await fetch(`${API_BASE_URL}/data-sources/external/configure`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+  return handleResponse(res);
+}
+
 export async function ingestVirtualPhysicalPacket(payload: Record<string, any>): Promise<InferenceResult> {
   const res = await fetch(`${API_BASE_URL}/data-sources/physical/virtual-packet`, {
     method: 'POST',

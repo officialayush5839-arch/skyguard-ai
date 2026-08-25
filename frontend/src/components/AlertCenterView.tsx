@@ -4,7 +4,6 @@ import {
   Download,
   CheckCircle2,
   ChevronRight,
-  Info,
   ShieldAlert,
 } from 'lucide-react';
 import { fetchAnomalies, fetchAnomalyStats, fetchStations } from '../services/api';
@@ -254,44 +253,179 @@ export function AlertCenterView() {
           </div>
         </div>
 
-        {/* Right Detail Inspection Drawer */}
+        {/* Right Detail Inspection Drawer / Modal */}
         {activeEvent && (
-          <div className="bg-slate-900/90 backdrop-blur border border-sky-500/40 rounded-xl p-5 shadow-xl space-y-4">
+          <div className="bg-slate-900/95 backdrop-blur border border-sky-500/40 rounded-xl p-5 shadow-2xl space-y-4 max-h-[800px] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <span className={`px-2 py-0.5 rounded border text-xs font-bold ${getSeverityBadge(activeEvent.severity || 'NORMAL')}`}>
                   {activeEvent.severity || 'NORMAL'}
                 </span>
                 <span className="font-mono text-xs font-bold text-sky-400">{activeEvent.station_id}</span>
+                {activeEvent.source_type && (
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                    {activeEvent.source_type}
+                  </span>
+                )}
               </div>
               <button
                 onClick={() => setActiveEvent(null)}
-                className="text-xs text-slate-400 hover:text-white"
+                className="text-xs text-slate-400 hover:text-white px-2 py-1 bg-slate-800 rounded-lg hover:bg-slate-700 transition-colors"
               >
                 Close
               </button>
             </div>
 
+            {/* Classification & Confidence Header */}
             <div>
-              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Classification</h4>
-              <p className="text-base font-bold text-white mt-0.5">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Classification & Decision</h4>
+                <span className="text-xs font-mono font-bold text-sky-300">
+                  Confidence: {((activeEvent.confidence || 0) * 100).toFixed(0)}%
+                </span>
+              </div>
+              <p className="text-lg font-bold text-white mt-0.5">
                 {(activeEvent.classification || 'NORMAL').replace(/_/g, ' ')}
               </p>
-              <p className="text-xs text-slate-300 mt-1 font-mono">
-                {activeEvent.is_fault ? '⚠️ Probable Sensor/Data Fault' : '🌪️ Likely Genuine Meteorological Event'}
-              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className={`text-xs px-2 py-0.5 rounded-full font-mono ${
+                  activeEvent.is_fault
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                }`}>
+                  {activeEvent.is_fault ? '⚠️ Probable Sensor/Data Fault' : '🌪️ Likely Genuine Meteorological Event'}
+                </span>
+                <span className="text-xs font-mono text-slate-400">
+                  Score: <strong className="text-white">{((activeEvent.anomaly_score || 0) * 100).toFixed(1)}%</strong>
+                </span>
+              </div>
             </div>
 
-            {/* Explanation & Rationale */}
-            <div className="bg-slate-950 p-3.5 rounded-lg border border-slate-800 text-xs">
-              <h5 className="font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
-                <Info className="w-3.5 h-3.5 text-sky-400" />
-                Root Cause Rationale
-              </h5>
-              <p className="text-slate-400 leading-relaxed">
-                {activeEvent.explanation?.summary || activeEvent.reason || 'Multi-tier anomaly score exceeded operational threshold.'}
-              </p>
+            {/* Observed Channels */}
+            {activeEvent.raw_values && (
+              <div>
+                <h5 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                  Observed Channel Telemetry
+                </h5>
+                <div className="grid grid-cols-3 gap-2 font-mono text-xs text-center">
+                  <div className="bg-slate-950 p-2 rounded-lg border border-slate-800">
+                    <span className="text-[10px] text-slate-500 block">Temperature</span>
+                    <span className="font-bold text-white text-sm">
+                      {activeEvent.raw_values.temperature !== undefined ? `${Number(activeEvent.raw_values.temperature).toFixed(1)}°C` : '--'}
+                    </span>
+                  </div>
+                  <div className="bg-slate-950 p-2 rounded-lg border border-slate-800">
+                    <span className="text-[10px] text-slate-500 block">Pressure</span>
+                    <span className="font-bold text-white text-sm">
+                      {activeEvent.raw_values.pressure !== undefined ? `${Number(activeEvent.raw_values.pressure).toFixed(1)} hPa` : '--'}
+                    </span>
+                  </div>
+                  <div className="bg-slate-950 p-2 rounded-lg border border-slate-800">
+                    <span className="text-[10px] text-slate-500 block">Humidity</span>
+                    <span className="font-bold text-white text-sm">
+                      {activeEvent.raw_values.humidity !== undefined ? `${Number(activeEvent.raw_values.humidity).toFixed(1)}%` : '--'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TreeSHAP Feature Attributions Waterfall */}
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <h5 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                  <ShieldAlert className="w-4 h-4 text-sky-400" />
+                  TreeSHAP Root-Cause Feature Attributions
+                </h5>
+                <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
+                  {activeEvent.explanation?.method || 'TreeExplainer'}
+                </span>
+              </div>
+
+              {activeEvent.explanation?.contributing_features && activeEvent.explanation.contributing_features.length > 0 ? (
+                <div className="space-y-2 font-mono text-xs">
+                  {activeEvent.explanation.contributing_features.slice(0, 6).map((feat, idx) => {
+                    const isPositive = feat.attribution >= 0;
+                    const absVal = Math.abs(feat.attribution);
+                    const pctWidth = Math.min(100, Math.max(8, absVal * 200));
+
+                    return (
+                      <div key={idx} className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-300 font-medium truncate max-w-[180px]">
+                            {feat.feature.replace(/_/g, ' ')}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className={`font-bold ${isPositive ? 'text-rose-400' : 'text-emerald-400'}`}>
+                              {isPositive ? `+${feat.attribution.toFixed(3)}` : feat.attribution.toFixed(3)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Relative Contribution Bar */}
+                        <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden flex">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              isPositive
+                                ? 'bg-gradient-to-r from-amber-500 to-rose-500'
+                                : 'bg-gradient-to-r from-teal-500 to-emerald-500'
+                            }`}
+                            style={{ width: `${pctWidth}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-xs text-slate-500 italic py-2">
+                  No feature attribution data stored for this historical event.
+                </div>
+              )}
+
+              {/* Rationale Summary */}
+              <div className="mt-2 pt-2 border-t border-slate-900 text-xs">
+                <p className="text-slate-400 leading-relaxed">
+                  <strong className="text-slate-300">Deterministic Rationale: </strong>
+                  {activeEvent.explanation?.summary || activeEvent.reason || 'Multi-tier anomaly score exceeded operational threshold.'}
+                </p>
+              </div>
             </div>
+
+            {/* Spatial Consensus / AWS Buddy-Check Card */}
+            {activeEvent.spatial_consensus && (
+              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    Tier 3.5 Spatial Consensus
+                  </span>
+                  <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                    activeEvent.spatial_consensus.status === 'SUPPORTED'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : activeEvent.spatial_consensus.status === 'ISOLATED'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : 'bg-slate-800 text-slate-400 border-slate-700'
+                  }`}>
+                    {activeEvent.spatial_consensus.status}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                  <div className="text-slate-400">
+                    Neighbors: <strong className="text-white">{activeEvent.spatial_consensus.neighbor_count}</strong> (Radius: {activeEvent.spatial_consensus.radius_km}km)
+                  </div>
+                  <div className="text-slate-400 text-right">
+                    Agreement: <strong className="text-white">{((activeEvent.spatial_consensus.consensus_score || 0) * 100).toFixed(0)}%</strong>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  {activeEvent.spatial_consensus.message || (
+                    activeEvent.spatial_consensus.regional_event_supported
+                      ? 'Observation is supported by regional AWS station consensus.'
+                      : 'Observation diverges from neighboring AWS stations (isolated sensor fault suspected).'
+                  )}
+                </p>
+              </div>
+            )}
 
             {/* Recommended Operator Action */}
             {activeEvent.recommended_action && (
@@ -301,35 +435,6 @@ export function AlertCenterView() {
                   Recommended Operational Action
                 </h5>
                 <p className="text-amber-200/90">{activeEvent.recommended_action}</p>
-              </div>
-            )}
-
-            {/* Observed Channels */}
-            {activeEvent.raw_values && (
-              <div>
-                <h5 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                  Observed Channel Values
-                </h5>
-                <div className="grid grid-cols-3 gap-2 font-mono text-xs text-center">
-                  <div className="bg-slate-950 p-2 rounded border border-slate-800">
-                    <span className="text-[10px] text-slate-500 block">Temperature</span>
-                    <span className="font-bold text-white">
-                      {activeEvent.raw_values.temperature !== undefined ? `${activeEvent.raw_values.temperature.toFixed(1)}°C` : '--'}
-                    </span>
-                  </div>
-                  <div className="bg-slate-950 p-2 rounded border border-slate-800">
-                    <span className="text-[10px] text-slate-500 block">Pressure</span>
-                    <span className="font-bold text-white">
-                      {activeEvent.raw_values.pressure !== undefined ? `${activeEvent.raw_values.pressure.toFixed(0)} hPa` : '--'}
-                    </span>
-                  </div>
-                  <div className="bg-slate-950 p-2 rounded border border-slate-800">
-                    <span className="text-[10px] text-slate-500 block">Humidity</span>
-                    <span className="font-bold text-white">
-                      {activeEvent.raw_values.humidity !== undefined ? `${activeEvent.raw_values.humidity.toFixed(0)}%` : '--'}
-                    </span>
-                  </div>
-                </div>
               </div>
             )}
           </div>

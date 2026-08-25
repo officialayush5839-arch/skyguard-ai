@@ -208,6 +208,37 @@ class DataSourceManager:
         self.initialize()
         return self._sources.get(source_type)
 
+    async def configure_external_source(
+        self,
+        latitude: float,
+        longitude: float,
+        station_id: Optional[str] = None,
+        station_name: Optional[str] = None,
+    ) -> DataSourceStatus:
+        """Dynamically reconfigures the Open-Meteo external weather source and fetches a fresh observation."""
+        self.initialize()
+        ext_source = self._sources.get(DataSourceType.EXTERNAL_API)
+        if not isinstance(ext_source, ExternalWeatherDataSource):
+            raise RuntimeError("External weather source adapter is not registered.")
+
+        ext_source.set_location(
+            latitude=latitude,
+            longitude=longitude,
+            station_id=station_id,
+            station_name=station_name,
+        )
+
+        # If currently active, trigger an immediate observation fetch
+        if self._active_source_type == DataSourceType.EXTERNAL_API and ext_source._is_running:
+            try:
+                obs = await ext_source.fetch_live_observation()
+                if obs:
+                    await self._on_telemetry_received(obs)
+            except Exception as e:
+                logger.warning("[DATA_SOURCE_MANAGER] Immediate re-fetch after config failed: %s", e)
+
+        return await ext_source.get_status()
+
 
 # Global singleton instance
 data_source_manager = DataSourceManager()

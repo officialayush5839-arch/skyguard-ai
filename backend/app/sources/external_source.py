@@ -59,6 +59,24 @@ class ExternalWeatherDataSource(BaseDataSource):
         self._retry_count: int = 0
         self._max_retry_backoff: float = 60.0
 
+    def set_location(
+        self,
+        latitude: float,
+        longitude: float,
+        station_id: Optional[str] = None,
+        station_name: Optional[str] = None,
+    ) -> None:
+        """Dynamically reconfigures geographic coordinates and station identifiers."""
+        self.latitude = latitude
+        self.longitude = longitude
+        if station_id:
+            self.station_id = station_id
+        if station_name:
+            self.station_name = station_name
+            self.name = f"Open-Meteo Live Weather Feed ({station_name})"
+        logger.info("[DATA_SOURCE] Reconfigured location to Lat: %.4f, Lon: %.4f, Station: %s (%s)",
+                    self.latitude, self.longitude, self.station_id, self.station_name)
+
     async def start(self) -> None:
         """Starts asynchronous polling loop for Open-Meteo."""
         async with self._lock:

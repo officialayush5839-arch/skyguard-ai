@@ -15,8 +15,18 @@ import {
   MapPin,
   ExternalLink,
 } from 'lucide-react';
-import { DataSourceListResponse, DataSourceStatus, DataSourceType } from '../types';
-import { fetchDataSources, selectDataSource, fetchExternalWeatherPreview } from '../services/api';
+import {
+  DataSourceListResponse,
+  DataSourceStatus,
+  DataSourceType,
+  CITY_PRESETS,
+} from '../types';
+import {
+  fetchDataSources,
+  selectDataSource,
+  fetchExternalWeatherPreview,
+  configureExternalWeatherSource,
+} from '../services/api';
 
 interface DataSourceControlProps {
   onSourceChanged?: (source: DataSourceStatus) => void;
@@ -26,6 +36,8 @@ export const DataSourceControl: React.FC<DataSourceControlProps> = ({ onSourceCh
   const [sourcesData, setSourcesData] = useState<DataSourceListResponse | null>(null);
   const [loadingPreview, setLoadingPreview] = useState<boolean>(false);
   const [switching, setSwitching] = useState<boolean>(false);
+  const [switchingCity, setSwitchingCity] = useState<boolean>(false);
+  const [selectedCityId, setSelectedCityId] = useState<string>('pune');
   const [error, setError] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<any | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState<boolean>(false);
@@ -60,6 +72,30 @@ export const DataSourceControl: React.FC<DataSourceControlProps> = ({ onSourceCh
       setError(err.message || `Failed to switch to ${sourceType}`);
     } finally {
       setSwitching(false);
+    }
+  };
+
+  const handleCityChange = async (cityId: string) => {
+    const city = CITY_PRESETS.find((c) => c.id === cityId);
+    if (!city) return;
+    setSelectedCityId(cityId);
+    setSwitchingCity(true);
+    setError(null);
+    try {
+      const updated = await configureExternalWeatherSource({
+        latitude: city.latitude,
+        longitude: city.longitude,
+        station_id: city.station_id,
+        station_name: city.name,
+      });
+      await loadSources();
+      if (onSourceChanged) {
+        onSourceChanged(updated);
+      }
+    } catch (err: any) {
+      setError(err.message || `Failed to configure Open-Meteo for ${city.name}`);
+    } finally {
+      setSwitchingCity(false);
     }
   };
 
@@ -230,14 +266,14 @@ export const DataSourceControl: React.FC<DataSourceControlProps> = ({ onSourceCh
 
           {/* Station & Location Card */}
           <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3">
-            <div className="text-[11px] text-slate-400 uppercase font-mono mb-1">Station ID</div>
+            <div className="text-[11px] text-slate-400 uppercase font-mono mb-1">Station ID & City</div>
             <div className="flex items-center gap-1.5 font-bold text-slate-100 font-mono">
               <MapPin className="w-3.5 h-3.5 text-amber-400" />
               <span>{activeStatus.station_id}</span>
             </div>
             {activeStatus.coordinates && (
               <div className="text-[11px] text-slate-400 mt-1 font-mono">
-                {activeStatus.coordinates.latitude.toFixed(2)}°N, {activeStatus.coordinates.longitude.toFixed(2)}°E
+                {activeStatus.coordinates.latitude.toFixed(4)}°N, {activeStatus.coordinates.longitude.toFixed(4)}°E
               </div>
             )}
           </div>
@@ -270,6 +306,59 @@ export const DataSourceControl: React.FC<DataSourceControlProps> = ({ onSourceCh
                 <span>{loadingPreview ? 'Fetching Live...' : 'Test Live Query'}</span>
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Multi-City Live Preset Bar (Open-Meteo Mode) */}
+      {sourcesData?.active_source === 'EXTERNAL_API' && (
+        <div className="mt-3.5 pt-3 border-t border-slate-800/80">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2">
+              <Globe className="w-3.5 h-3.5 text-sky-400" />
+              <span className="text-xs font-bold text-slate-200">GLOBAL CLIMATE ZONE PRESETS</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.2 bg-sky-500/20 text-sky-300 rounded border border-sky-500/30">
+                1-Click Live Re-Query
+              </span>
+            </div>
+            {switchingCity && (
+              <span className="text-[11px] text-sky-400 flex items-center gap-1 font-mono">
+                <RefreshCw className="w-3 h-3 animate-spin" /> Fetching live observation...
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+            {CITY_PRESETS.map((city) => {
+              const isSelected = selectedCityId === city.id || activeStatus?.station_id === city.station_id;
+              return (
+                <button
+                  key={city.id}
+                  onClick={() => handleCityChange(city.id)}
+                  disabled={switchingCity}
+                  className={`p-2 rounded-xl text-left border transition-all ${
+                    isSelected
+                      ? 'bg-sky-500/15 border-sky-500/60 shadow-md shadow-sky-500/10'
+                      : 'bg-slate-950/40 border-slate-800 hover:border-slate-700 hover:bg-slate-900/60'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className={`text-xs font-bold ${isSelected ? 'text-sky-300' : 'text-slate-200'}`}>
+                      {city.name}
+                    </span>
+                    <span className="text-[9px] font-mono px-1 rounded bg-slate-800 text-slate-400">
+                      {city.country}
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-mono truncate">
+                    {city.latitude.toFixed(2)}°, {city.longitude.toFixed(2)}°
+                  </div>
+                  <div className="text-[9px] text-slate-500 truncate mt-0.5" title={city.description}>
+                    {city.description}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

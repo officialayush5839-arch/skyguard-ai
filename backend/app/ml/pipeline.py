@@ -31,6 +31,7 @@ from backend.app.ml.tier3_multivariate import Tier3MultivariateDetector, Tier3Re
 from backend.app.ml.tier4_classifier import ClassificationResult, FaultClassifier
 from backend.app.ml.tier5_explain import ExplainabilityEngine, ExplanationResult
 from backend.app.ml.tier5_health import DegradationRisk, HealthStatus, SensorHealthEngine
+from backend.app.spatial.consensus import spatial_consensus_engine, SpatialConsensusResult
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,7 @@ class InferenceResult(BaseModel):
     estimated_hours_to_failure: Optional[float] = Field(None, description="Estimated hours until SHI < 50")
     multivariate_diagnostics: Optional[Dict[str, Any]] = Field(default_factory=dict)
     raw_values: Optional[Dict[str, float]] = Field(default_factory=dict)
+    spatial_consensus: Optional[Dict[str, Any]] = Field(default=None, description="Tier 3.5 spatial consensus buddy-check diagnostics")
 
 
 class SkyGuardPipeline:
@@ -148,7 +150,11 @@ class SkyGuardPipeline:
                 background_data=getattr(self.tier2_point, "background_sample", None),
             )
 
-    def process_observation(self, obs: Union[Dict[str, Any], Any]) -> InferenceResult:
+    def process_observation(
+        self,
+        obs: Union[Dict[str, Any], Any],
+        neighbor_observations: Optional[List[Dict[str, Any]]] = None,
+    ) -> InferenceResult:
         """Executes full 5-tier inference on a single real-time telemetry observation."""
         if hasattr(obs, "model_dump"):
             data = obs.model_dump()
@@ -280,6 +286,21 @@ class SkyGuardPipeline:
             confidence=fusion_res.confidence,
         )
 
+        # Step 9: Tier 3.5 Additive Spatial Consensus Diagnostic
+        spatial_dict = None
+        if neighbor_observations is not None:
+            try:
+                spatial_res = spatial_consensus_engine.evaluate_consensus(
+                    target_station_id=station_id,
+                    target_lat=data.get("latitude"),
+                    target_lon=data.get("longitude"),
+                    target_telemetry={"temperature": t, "pressure": p, "humidity": rh},
+                    neighbor_observations=neighbor_observations,
+                )
+                spatial_dict = spatial_res.model_dump()
+            except Exception as e:
+                logger.warning("Spatial consensus evaluation failed: %s", e)
+
         return InferenceResult(
             timestamp=timestamp_str,
             station_id=station_id,
@@ -310,6 +331,7 @@ class SkyGuardPipeline:
                 "pressure": p,
                 "humidity": rh,
             },
+            spatial_consensus=spatial_dict,
         )
 
     def process_batch(self, df: pd.DataFrame, station_id: Optional[str] = None) -> List[InferenceResult]:

@@ -113,6 +113,14 @@ class DataSourceSelectRequest(BaseModel):
     station_id: Optional[str] = Field(None, description="Optional station ID to target")
 
 
+class ExternalSourceConfigRequest(BaseModel):
+    """Request payload to configure geographic coordinates for Open-Meteo external feed."""
+    latitude: float = Field(..., ge=-90.0, le=90.0, description="Geographic latitude")
+    longitude: float = Field(..., ge=-180.0, le=180.0, description="Geographic longitude")
+    station_id: Optional[str] = Field(None, description="Optional custom station identifier")
+    station_name: Optional[str] = Field(None, description="Optional human-readable station name / city")
+
+
 class DataSourceListResponse(BaseModel):
     """List of all registered telemetry data sources with runtime statuses."""
     active_source: DataSourceType
