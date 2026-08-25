@@ -47,6 +47,8 @@ async def test_list_stations(async_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_create_and_get_station(async_client: AsyncClient):
     """Test creating a new AWS station and fetching its details."""
+    # Ensure clean state by deleting if already present
+    await async_client.delete("/api/stations/AWS-TEST-01")
     payload = {
         "station_id": "AWS-TEST-01",
         "name": "Highland Test Station",
