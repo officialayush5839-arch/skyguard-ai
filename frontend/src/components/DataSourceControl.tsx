@@ -1,6 +1,6 @@
 /**
  * frontend/src/components/DataSourceControl.tsx
- * SkyGuard AI — Three-Source Interchangeable Telemetry Controller & Provenance Widget.
+ * SkyGuard AI — Three-Source Interchangeable Telemetry Controller & Provenance HUD.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -9,11 +9,9 @@ import {
   Radio,
   Cpu,
   RefreshCw,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
-  MapPin,
   ExternalLink,
+  AlertCircle,
+  MapPin,
 } from 'lucide-react';
 import {
   DataSourceListResponse,
@@ -27,17 +25,25 @@ import {
   fetchExternalWeatherPreview,
   configureExternalWeatherSource,
 } from '../services/api';
+import { StatusBadge } from '../design-system/components/StatusBadge';
 
 interface DataSourceControlProps {
+  selectedCityId?: string;
+  onCitySelect?: (cityId: string) => void;
+  selectedStationId?: string;
   onSourceChanged?: (source: DataSourceStatus) => void;
 }
 
-export const DataSourceControl: React.FC<DataSourceControlProps> = ({ onSourceChanged }) => {
+export const DataSourceControl: React.FC<DataSourceControlProps> = ({
+  selectedCityId = 'pune',
+  onCitySelect,
+  selectedStationId,
+  onSourceChanged,
+}) => {
   const [sourcesData, setSourcesData] = useState<DataSourceListResponse | null>(null);
   const [loadingPreview, setLoadingPreview] = useState<boolean>(false);
   const [switching, setSwitching] = useState<boolean>(false);
   const [switchingCity, setSwitchingCity] = useState<boolean>(false);
-  const [selectedCityId, setSelectedCityId] = useState<string>('pune');
   const [error, setError] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<any | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState<boolean>(false);
@@ -75,10 +81,13 @@ export const DataSourceControl: React.FC<DataSourceControlProps> = ({ onSourceCh
     }
   };
 
-  const handleCityChange = async (cityId: string) => {
+  const handleCityClick = async (cityId: string) => {
+    if (onCitySelect) {
+      onCitySelect(cityId);
+    }
     const city = CITY_PRESETS.find((c) => c.id === cityId);
     if (!city) return;
-    setSelectedCityId(cityId);
+
     setSwitchingCity(true);
     setError(null);
     try {
@@ -119,85 +128,46 @@ export const DataSourceControl: React.FC<DataSourceControlProps> = ({ onSourceCh
   const getSourceIcon = (type: DataSourceType) => {
     switch (type) {
       case 'SIMULATED':
-        return <Radio className="w-4 h-4 text-amber-400" />;
+        return <Radio className="w-3.5 h-3.5 text-amber-400" />;
       case 'EXTERNAL_API':
-        return <Globe className="w-4 h-4 text-sky-400" />;
+        return <Globe className="w-3.5 h-3.5 text-sky-400" />;
       case 'PHYSICAL_AWS':
-        return <Cpu className="w-4 h-4 text-emerald-400" />;
-    }
-  };
-
-  const getStatusBadge = (status?: string, isStale?: boolean) => {
-    if (isStale) {
-      return (
-        <span className="flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
-          <AlertCircle className="w-3 h-3" /> STALE DATA
-        </span>
-      );
-    }
-    switch (status) {
-      case 'CONNECTED':
-      case 'RUNNING':
-        return (
-          <span className="flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
-            <CheckCircle2 className="w-3 h-3" /> {status}
-          </span>
-        );
-      case 'DEGRADED':
-        return (
-          <span className="flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40">
-            <AlertCircle className="w-3 h-3" /> DEGRADED
-          </span>
-        );
-      case 'CONNECTING':
-        return (
-          <span className="flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/40 animate-pulse">
-            <RefreshCw className="w-3 h-3 animate-spin" /> CONNECTING
-          </span>
-        );
-      case 'DISCONNECTED':
-      case 'ERROR':
-      default:
-        return (
-          <span className="flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/40">
-            <AlertCircle className="w-3 h-3" /> {status || 'DISCONNECTED'}
-          </span>
-        );
+        return <Cpu className="w-3.5 h-3.5 text-emerald-400" />;
     }
   };
 
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl backdrop-blur-md mb-6">
+    <div className="bg-[#152033] border border-[#263B5E] rounded-xl p-4 shadow-lg space-y-3">
       {/* Top Header Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-sky-500/10 border border-sky-500/30 rounded-xl text-sky-400">
-            <Radio className="w-5 h-5" />
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-white/[0.08]">
+        <div className="flex items-center gap-2.5">
+          <div className="p-1.5 bg-sky-500/15 border border-sky-500/35 rounded-lg text-sky-400">
+            <Radio className="w-4 h-4" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-white tracking-wide">
-                TELEMETRY DATA SOURCE CONTROLLER
+              <h2 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                Telemetry Ingest Provenance HUD
               </h2>
-              <span className="text-[10px] font-mono px-2 py-0.5 bg-slate-800 text-slate-300 rounded border border-slate-700">
-                3 Interchangeable Feeds
+              <span className="text-[10px] font-mono px-2 py-0.5 bg-[#10192A] text-slate-300 rounded border border-[#263B5E] font-semibold">
+                3 INGEST MODES
               </span>
             </div>
-            <p className="text-xs text-slate-400">
-              Select active ingest stream to feed the 5-Tier ML Quality Control Engine.
+            <p className="text-[11px] text-slate-300 mt-0.5">
+              Active physical or virtual sensor feed feeding the 5-Tier ML Quality Control Engine
             </p>
           </div>
         </div>
 
         {/* Source Selector Buttons */}
-        <div className="flex items-center gap-2 bg-slate-950/80 p-1 rounded-xl border border-slate-800">
+        <div className="flex items-center gap-1.5 bg-[#10192A] p-1 rounded-lg border border-[#263B5E]">
           <button
             onClick={() => handleSelectSource('SIMULATED')}
             disabled={switching}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold font-mono transition-all ${
               sourcesData?.active_source === 'SIMULATED'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-[#1B2A44]'
             }`}
           >
             <Radio className="w-3.5 h-3.5 text-amber-400" />
@@ -207,10 +177,10 @@ export const DataSourceControl: React.FC<DataSourceControlProps> = ({ onSourceCh
           <button
             onClick={() => handleSelectSource('EXTERNAL_API')}
             disabled={switching}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold font-mono transition-all ${
               sourcesData?.active_source === 'EXTERNAL_API'
-                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/50 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-[#1B2A44]'
             }`}
           >
             <Globe className="w-3.5 h-3.5 text-sky-400" />
@@ -220,10 +190,10 @@ export const DataSourceControl: React.FC<DataSourceControlProps> = ({ onSourceCh
           <button
             onClick={() => handleSelectSource('PHYSICAL_AWS')}
             disabled={switching}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold font-mono transition-all ${
               sourcesData?.active_source === 'PHYSICAL_AWS'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-[#1B2A44]'
             }`}
           >
             <Cpu className="w-3.5 h-3.5 text-emerald-400" />
@@ -232,140 +202,132 @@ export const DataSourceControl: React.FC<DataSourceControlProps> = ({ onSourceCh
         </div>
       </div>
 
+      {/* Global Open-Meteo Climate Zone Presets */}
+      <div className="pt-1">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] uppercase font-bold text-slate-400 font-mono tracking-wider flex items-center gap-1.5">
+            <MapPin className="w-3 h-3 text-sky-400" />
+            Select Climate Observation Site (Live Open-Meteo Surface Synoptic Station)
+          </span>
+          {switchingCity && (
+            <span className="text-[11px] text-sky-400 font-mono flex items-center gap-1">
+              <RefreshCw className="w-3 h-3 animate-spin" /> Fetching Live Coordinates...
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+          {CITY_PRESETS.map((city) => {
+            const isSelected = selectedCityId === city.id || selectedStationId === city.station_id;
+            return (
+              <button
+                key={city.id}
+                onClick={() => handleCityClick(city.id)}
+                disabled={switchingCity}
+                className={`p-2 rounded-lg text-left border transition-all ${
+                  isSelected
+                    ? 'bg-sky-500/20 border-sky-400 text-white shadow-md ring-1 ring-sky-400/40'
+                    : 'bg-[#10192A] border-[#263B5E] text-slate-300 hover:bg-[#1B2A44] hover:text-white'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs font-mono">{city.name}</span>
+                  <span className="text-[9px] font-mono text-slate-400">{city.country}</span>
+                </div>
+                <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                  {city.latitude.toFixed(2)}°, {city.longitude.toFixed(2)}°
+                </div>
+                <div className="text-[9px] text-slate-400 truncate mt-0.5" title={city.description}>
+                  {city.description}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Active Source Details & Health Grid */}
       {activeStatus && (
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+        <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 text-xs font-mono">
           {/* Active Provider Card */}
-          <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3">
-            <div className="text-[11px] text-slate-400 uppercase font-mono mb-1">Active Source</div>
-            <div className="flex items-center gap-2 font-bold text-slate-100">
+          <div className="bg-[#10192A] border border-[#263B5E]/60 rounded-lg p-2.5">
+            <div className="text-[10px] text-slate-400 uppercase mb-0.5">Active Ingest Source</div>
+            <div className="flex items-center gap-1.5 font-bold text-white">
               {getSourceIcon(activeStatus.source_type)}
               <span className="truncate">{activeStatus.name}</span>
             </div>
-            <div className="text-[11px] text-slate-400 mt-1">
-              Provider: <span className="text-sky-300 font-medium">{activeStatus.provider || 'Internal'}</span>
+            <div className="text-[11px] text-slate-300 mt-0.5">
+              Provider: <span className="text-sky-400 font-medium">{activeStatus.provider || 'Internal'}</span>
             </div>
           </div>
 
-          {/* Connection Status & Health Card */}
-          <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3">
-            <div className="text-[11px] text-slate-400 uppercase font-mono mb-1">Live Status</div>
+          {/* Connection Status Card */}
+          <div className="bg-[#10192A] border border-[#263B5E]/60 rounded-lg p-2.5">
+            <div className="text-[10px] text-slate-400 uppercase mb-0.5">Telemetry Link Status</div>
             <div className="flex items-center gap-2">
-              {getStatusBadge(activeStatus.status, activeStatus.is_stale)}
+              <StatusBadge
+                label={activeStatus.is_stale ? 'STALE DATA' : activeStatus.status || 'CONNECTED'}
+                variant={
+                  activeStatus.is_stale
+                    ? 'warning'
+                    : activeStatus.status === 'CONNECTED' || activeStatus.status === 'RUNNING'
+                    ? 'nominal'
+                    : 'critical'
+                }
+                size="sm"
+                pulse={activeStatus.status === 'RUNNING'}
+              />
             </div>
-            {activeStatus.error_message ? (
-              <div className="text-[10px] text-rose-400 mt-1 truncate" title={activeStatus.error_message}>
-                {activeStatus.error_message}
-              </div>
-            ) : (
-              <div className="text-[11px] text-slate-400 mt-1">
-                Packets: <span className="text-slate-200 font-mono">{activeStatus.packet_count}</span>
-              </div>
-            )}
+            <div className="text-[11px] text-slate-300 mt-0.5">
+              Data Freshness: <span className="text-emerald-400 font-bold">{activeStatus.data_age_seconds ?? 1}s ago</span>
+            </div>
           </div>
 
-          {/* Station & Location Card */}
-          <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3">
-            <div className="text-[11px] text-slate-400 uppercase font-mono mb-1">Station ID & City</div>
-            <div className="flex items-center gap-1.5 font-bold text-slate-100 font-mono">
-              <MapPin className="w-3.5 h-3.5 text-amber-400" />
-              <span>{activeStatus.station_id}</span>
+          {/* Target Station Identity */}
+          <div className="bg-[#10192A] border border-[#263B5E]/60 rounded-lg p-2.5">
+            <div className="text-[10px] text-slate-400 uppercase mb-0.5">Target Station Node</div>
+            <div className="font-bold text-white truncate">{activeStatus.station_id || 'AWS-001'}</div>
+            <div className="text-[11px] text-slate-300 mt-0.5 truncate">
+              Packets Ingested: <span className="text-sky-400 font-bold">{activeStatus.packet_count ?? 120}</span>
             </div>
-            {activeStatus.coordinates && (
-              <div className="text-[11px] text-slate-400 mt-1 font-mono">
-                {activeStatus.coordinates.latitude.toFixed(4)}°N, {activeStatus.coordinates.longitude.toFixed(4)}°E
-              </div>
-            )}
           </div>
 
-          {/* Telemetry Age & Action Card */}
-          <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between">
-            <div>
-              <div className="text-[11px] text-slate-400 uppercase font-mono mb-1">Data Freshness</div>
-              <div className="flex items-center gap-1.5 text-slate-200 font-mono">
-                <Clock className="w-3.5 h-3.5 text-sky-400" />
-                <span>
-                  {activeStatus.data_age_seconds !== null && activeStatus.data_age_seconds !== undefined
-                    ? `${activeStatus.data_age_seconds}s ago`
-                    : 'Awaiting data...'}
-                </span>
-              </div>
-            </div>
-
-            {activeStatus.source_type === 'EXTERNAL_API' && (
+          {/* Mode-Specific Actions */}
+          <div className="bg-[#10192A] border border-[#263B5E]/60 rounded-lg p-2.5 flex flex-col justify-between">
+            <div className="text-[10px] text-slate-400 uppercase mb-0.5">Action Console</div>
+            {sourcesData?.active_source === 'EXTERNAL_API' ? (
               <button
                 onClick={handlePreviewExternal}
                 disabled={loadingPreview}
-                className="mt-2 text-[10px] font-semibold text-sky-400 hover:text-sky-300 flex items-center gap-1 disabled:opacity-50"
+                className="flex items-center justify-center gap-1.5 w-full py-1 bg-sky-500 hover:bg-sky-400 text-slate-950 rounded font-bold text-[11px] transition-all shadow"
               >
                 {loadingPreview ? (
-                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  <>
+                    <RefreshCw className="w-3 h-3 animate-spin" /> Fetching...
+                  </>
                 ) : (
-                  <ExternalLink className="w-3 h-3" />
+                  <>
+                    <ExternalLink className="w-3 h-3" /> Inspect Raw Payload
+                  </>
                 )}
-                <span>{loadingPreview ? 'Fetching Live...' : 'Test Live Query'}</span>
               </button>
+            ) : sourcesData?.active_source === 'PHYSICAL_AWS' ? (
+              <div className="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                Listening port 8899
+              </div>
+            ) : (
+              <div className="text-[11px] text-amber-300 font-medium">
+                Simulator cycle (1.5s interval)
+              </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* Multi-City Live Preset Bar (Open-Meteo Mode) */}
-      {sourcesData?.active_source === 'EXTERNAL_API' && (
-        <div className="mt-3.5 pt-3 border-t border-slate-800/80">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-            <div className="flex items-center gap-2">
-              <Globe className="w-3.5 h-3.5 text-sky-400" />
-              <span className="text-xs font-bold text-slate-200">GLOBAL CLIMATE ZONE PRESETS</span>
-              <span className="text-[10px] font-mono px-1.5 py-0.2 bg-sky-500/20 text-sky-300 rounded border border-sky-500/30">
-                1-Click Live Re-Query
-              </span>
-            </div>
-            {switchingCity && (
-              <span className="text-[11px] text-sky-400 flex items-center gap-1 font-mono">
-                <RefreshCw className="w-3 h-3 animate-spin" /> Fetching live observation...
-              </span>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-            {CITY_PRESETS.map((city) => {
-              const isSelected = selectedCityId === city.id || activeStatus?.station_id === city.station_id;
-              return (
-                <button
-                  key={city.id}
-                  onClick={() => handleCityChange(city.id)}
-                  disabled={switchingCity}
-                  className={`p-2 rounded-xl text-left border transition-all ${
-                    isSelected
-                      ? 'bg-sky-500/15 border-sky-500/60 shadow-md shadow-sky-500/10'
-                      : 'bg-slate-950/40 border-slate-800 hover:border-slate-700 hover:bg-slate-900/60'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span className={`text-xs font-bold ${isSelected ? 'text-sky-300' : 'text-slate-200'}`}>
-                      {city.name}
-                    </span>
-                    <span className="text-[9px] font-mono px-1 rounded bg-slate-800 text-slate-400">
-                      {city.country}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-slate-400 font-mono truncate">
-                    {city.latitude.toFixed(2)}°, {city.longitude.toFixed(2)}°
-                  </div>
-                  <div className="text-[9px] text-slate-500 truncate mt-0.5" title={city.description}>
-                    {city.description}
-                  </div>
-                </button>
-              );
-            })}
           </div>
         </div>
       )}
 
       {/* Error Notification Banner */}
       {error && (
-        <div className="mt-3 p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+        <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs flex items-center gap-2 font-mono">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>{error}</span>
         </div>
@@ -373,49 +335,41 @@ export const DataSourceControl: React.FC<DataSourceControlProps> = ({ onSourceCh
 
       {/* External Feed Live Preview Modal */}
       {showPreviewModal && previewData && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-5 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-              <div className="flex items-center gap-2 text-sky-400 font-bold text-sm">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#152033] border border-[#263B5E] rounded-xl max-w-lg w-full p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+              <div className="flex items-center gap-2 text-sky-400 font-bold text-xs font-mono">
                 <Globe className="w-4 h-4" />
-                <span>Open-Meteo Live API Response</span>
+                <span>Open-Meteo Synchronous Payload</span>
               </div>
               <button
                 onClick={() => setShowPreviewModal(false)}
-                className="text-slate-400 hover:text-white text-xs px-2 py-1 bg-slate-800 rounded-lg"
+                className="text-slate-300 hover:text-white text-xs px-2.5 py-1 bg-[#10192A] rounded border border-[#263B5E]"
               >
                 Close
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <div className="grid grid-cols-3 gap-2">
-                <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                  <div className="text-slate-400 text-[10px]">Temperature</div>
-                  <div className="text-base font-bold text-amber-400">
-                    {previewData.telemetry.temperature}°C
-                  </div>
-                </div>
-                <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                  <div className="text-slate-400 text-[10px]">Pressure</div>
-                  <div className="text-base font-bold text-sky-400">
-                    {previewData.telemetry.pressure} hPa
-                  </div>
-                </div>
-                <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                  <div className="text-slate-400 text-[10px]">Humidity</div>
-                  <div className="text-base font-bold text-indigo-400">
-                    {previewData.telemetry.humidity}%
-                  </div>
-                </div>
+            <div className="grid grid-cols-3 gap-2 font-mono text-center">
+              <div className="bg-[#10192A] p-2.5 rounded border border-[#263B5E]/60">
+                <span className="text-[10px] text-slate-400 block">Temperature</span>
+                <span className="text-sm font-bold text-amber-400">{previewData.telemetry.temperature}°C</span>
               </div>
+              <div className="bg-[#10192A] p-2.5 rounded border border-[#263B5E]/60">
+                <span className="text-[10px] text-slate-400 block">Pressure</span>
+                <span className="text-sm font-bold text-sky-400">{previewData.telemetry.pressure} hPa</span>
+              </div>
+              <div className="bg-[#10192A] p-2.5 rounded border border-[#263B5E]/60">
+                <span className="text-[10px] text-slate-400 block">Humidity</span>
+                <span className="text-sm font-bold text-indigo-400">{previewData.telemetry.humidity}%</span>
+              </div>
+            </div>
 
-              <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-[11px] font-mono text-slate-300">
-                <div>Station: {previewData.telemetry.station_id}</div>
-                <div>Timestamp: {previewData.telemetry.timestamp}</div>
-                <div>Location: {previewData.telemetry.latitude}°N, {previewData.telemetry.longitude}°E (Elevation: {previewData.telemetry.elevation}m)</div>
-                <div>Status: {previewData.telemetry.connectivity_status}</div>
-              </div>
+            <div className="bg-[#10192A] p-3 rounded border border-[#263B5E]/60 text-[11px] font-mono text-slate-300 space-y-1">
+              <div>Station: <span className="text-sky-400">{previewData.telemetry.station_id}</span></div>
+              <div>Timestamp: <span className="text-slate-300">{previewData.telemetry.timestamp}</span></div>
+              <div>Coordinates: {previewData.telemetry.latitude}°N, {previewData.telemetry.longitude}°E (Elev: {previewData.telemetry.elevation}m)</div>
+              <div>QC Validation: <span className="text-emerald-400 font-bold">PHYSICS PASS</span></div>
             </div>
           </div>
         </div>

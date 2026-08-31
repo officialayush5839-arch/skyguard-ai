@@ -229,12 +229,28 @@ class IngestionService:
                     await station_repo.update_status(station_id, new_station_status)
                     persisted = True
 
-            # Broadcast via WebSocket if requested
+            # Construct ObservationResponse
+            obs_resp = ObservationResponse(
+                id=obs_id,
+                station_id=station_id,
+                timestamp=dt_parsed,
+                temperature=float_t,
+                pressure=float_p,
+                humidity=float_rh,
+                validation_status="QC_FLAGGED" if inference_res.tier_scores.tier1_qc_flag else "VALID",
+                created_at=dt_parsed,
+            )
+
+            # Broadcast canonical observation & inference verdict via WebSocket
             if broadcast:
                 broadcast_data = inf_schema.model_dump()
                 broadcast_data["temperature"] = float_t
                 broadcast_data["pressure"] = float_p
                 broadcast_data["humidity"] = float_rh
+                broadcast_data["latitude"] = data.get("latitude")
+                broadcast_data["longitude"] = data.get("longitude")
+                broadcast_data["elevation"] = data.get("elevation")
+                broadcast_data["latency_ms"] = latency_ms
                 broadcast_data["source"] = {
                     "type": data.get("source_type", "SIMULATED"),
                     "id": data.get("source_id", "diurnal_generator"),
@@ -255,57 +271,6 @@ class IngestionService:
                             "classification": inference_res.classification,
                             "recommended_action": inference_res.recommended_action,
                             "source_type": data.get("source_type", "SIMULATED"),
-                        },
-                    )
-
-            # Construct ObservationResponse
-            obs_resp = ObservationResponse(
-                id=obs_id,
-                station_id=station_id,
-                timestamp=dt_parsed,
-                temperature=float_t,
-                pressure=float_p,
-                humidity=float_rh,
-                validation_status="QC_FLAGGED" if inference_res.tier_scores.tier1_qc_flag else "VALID",
-                created_at=dt_parsed,
-            )
-
-            # Broadcast via WebSocket if requested
-            if broadcast:
-                ws_payload = {
-                    "timestamp": inference_res.timestamp,
-                    "station_id": station_id,
-                    "temperature": float_t,
-                    "pressure": float_p,
-                    "humidity": float_rh,
-                    "is_anomaly": inference_res.is_anomaly,
-                    "anomaly_score": inference_res.anomaly_score,
-                    "confidence": inference_res.confidence,
-                    "severity": inference_res.severity,
-                    "classification": inference_res.classification,
-                    "is_fault": inference_res.is_fault,
-                    "reason": inference_res.reason,
-                    "explanation": inf_schema.explanation.model_dump(),
-                    "tier_scores": inf_schema.tier_scores.model_dump(),
-                    "sensor_health": inference_res.sensor_health,
-                    "sensor_status": inference_res.sensor_status,
-                    "recommended_action": inference_res.recommended_action,
-                    "degradation_risk": inference_res.degradation_risk,
-                    "estimated_hours_to_failure": inference_res.estimated_hours_to_failure,
-                    "latency_ms": latency_ms,
-                }
-                await ws_manager.broadcast_observation(station_id, ws_payload)
-
-                # Send explicit alert notification for severe anomalies
-                if inference_res.is_anomaly and inference_res.severity in ["HIGH", "CRITICAL"]:
-                    await ws_manager.broadcast_alert(
-                        station_id=station_id,
-                        severity=inference_res.severity,
-                        message_text=inference_res.reason,
-                        details={
-                            "anomaly_score": inference_res.anomaly_score,
-                            "classification": inference_res.classification,
-                            "is_fault": inference_res.is_fault,
                         },
                     )
 

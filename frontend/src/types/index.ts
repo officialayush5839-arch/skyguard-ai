@@ -216,6 +216,11 @@ export interface AnomalyEvent {
   created_at: string;
 }
 
+export interface AnomalyEventDetail extends AnomalyEvent {
+  observation?: Observation;
+  station?: Station;
+}
+
 export interface SensorHealthRecord {
   id?: number;
   station_id: string;
@@ -279,3 +284,33 @@ export interface SystemMetrics {
   active_websocket_clients: number;
   active_stations_count: number;
 }
+
+export type DisplayDensity = 'comfortable' | 'compact' | 'operator';
+
+export interface OperatorPreferences {
+  displayDensity: DisplayDensity;
+  reducedMotion: boolean;
+  defaultView: 'overview' | 'live' | 'alerts' | 'health' | 'events' | 'explorer' | 'injector' | 'explainability';
+  defaultStationId: string;
+  defaultDataSource: DataSourceType;
+  timezone: string;
+}
+
+export interface SystemHealthStatus {
+  websocket: 'CONNECTED' | 'DISCONNECTED' | 'CONNECTING';
+  restApi: 'HEALTHY' | 'DEGRADED' | 'ERROR';
+  databaseWal: 'HEALTHY' | 'DEGRADED' | 'ERROR';
+  mlEngine: 'READY' | 'INITIALIZING' | 'DEGRADED';
+  spatialConsensus: 'READY' | 'STANDBY';
+  openMeteo: 'CONNECTED' | 'DEGRADED' | 'DISCONNECTED';
+}
+
+export interface SystemConfiguration {
+  activeSource: DataSourceType;
+  selectedCityId: string;
+  selectedStationId: string;
+  activeSourceStatus: DataSourceStatus | null;
+  preferences: OperatorPreferences;
+  systemHealth: SystemHealthStatus;
+}
+

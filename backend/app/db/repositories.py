@@ -324,6 +324,7 @@ class AnomalyRepository:
         min_score: float = 0.0,
         page: int = 1,
         page_size: int = 50,
+        fleet_balanced: bool = False,
     ) -> Tuple[List[AnomalyEvent], int]:
         stmt = select(AnomalyEvent)
         count_stmt = select(func.count(AnomalyEvent.id))
@@ -354,6 +355,46 @@ class AnomalyRepository:
             count_stmt = count_stmt.where(AnomalyEvent.timestamp <= dt_end)
 
         total_count = (await self.session.execute(count_stmt)).scalar() or 0
+
+        # Fleet-balanced multi-station retrieval when querying all stations
+        if fleet_balanced and not station_id:
+            # Query distinct active station IDs
+            stations_stmt = select(AnomalyEvent.station_id).distinct()
+            if severity:
+                stations_stmt = stations_stmt.where(AnomalyEvent.severity == severity.upper())
+            if classification:
+                stations_stmt = stations_stmt.where(AnomalyEvent.classification == classification.upper())
+            if is_fault_only is not None:
+                stations_stmt = stations_stmt.where(AnomalyEvent.is_fault == is_fault_only)
+            if min_score > 0.0:
+                stations_stmt = stations_stmt.where(AnomalyEvent.anomaly_score >= min_score)
+
+            distinct_stations = (await self.session.execute(stations_stmt)).scalars().all()
+            if distinct_stations:
+                per_station_limit = max(5, page_size // len(distinct_stations))
+                balanced_events: List[AnomalyEvent] = []
+                for s in distinct_stations:
+                    sub_stmt = select(AnomalyEvent).where(AnomalyEvent.station_id == s)
+                    if severity:
+                        sub_stmt = sub_stmt.where(AnomalyEvent.severity == severity.upper())
+                    if classification:
+                        sub_stmt = sub_stmt.where(AnomalyEvent.classification == classification.upper())
+                    if is_fault_only is not None:
+                        sub_stmt = sub_stmt.where(AnomalyEvent.is_fault == is_fault_only)
+                    if min_score > 0.0:
+                        sub_stmt = sub_stmt.where(AnomalyEvent.anomaly_score >= min_score)
+                    if dt_start:
+                        sub_stmt = sub_stmt.where(AnomalyEvent.timestamp >= dt_start)
+                    if dt_end:
+                        sub_stmt = sub_stmt.where(AnomalyEvent.timestamp <= dt_end)
+
+                    sub_stmt = sub_stmt.order_by(desc(AnomalyEvent.timestamp)).limit(per_station_limit)
+                    s_res = (await self.session.execute(sub_stmt)).scalars().all()
+                    balanced_events.extend(s_res)
+
+                balanced_events.sort(key=lambda e: e.timestamp or datetime.min, reverse=True)
+                return balanced_events[:page_size], total_count
+
         offset = max(0, (page - 1) * page_size)
         stmt = stmt.order_by(desc(AnomalyEvent.timestamp)).offset(offset).limit(page_size)
         result = await self.session.execute(stmt)

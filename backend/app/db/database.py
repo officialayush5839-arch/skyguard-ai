@@ -121,51 +121,34 @@ async def init_db() -> None:
                 # Column already exists
                 pass
     
-    # Seed default AWS stations if database is freshly initialized
+    # Seed default AWS and City Preset stations if not present
     async with get_db_context() as session:
         from backend.app.db.models import Station
         from sqlalchemy import select
         
-        result = await session.execute(select(Station).limit(1))
-        existing = result.scalars().first()
-        if not existing:
-            default_stations = [
-                Station(
-                    station_id="AWS-001",
-                    name="Central Meteorological Observatory",
-                    latitude=28.6139,
-                    longitude=77.2090,
-                    elevation=216.0,
-                    status="ACTIVE",
-                ),
-                Station(
-                    station_id="AWS-002",
-                    name="Coastal Marine Weather Tower",
-                    latitude=18.9220,
-                    longitude=72.8347,
-                    elevation=14.0,
-                    status="ACTIVE",
-                ),
-                Station(
-                    station_id="AWS-003",
-                    name="Plateau Highland Station",
-                    latitude=32.2190,
-                    longitude=76.3234,
-                    elevation=1457.0,
-                    status="ACTIVE",
-                ),
-                Station(
-                    station_id="AWS-004",
-                    name="Arid Subtropical Outpost",
-                    latitude=26.9124,
-                    longitude=70.9022,
-                    elevation=225.0,
-                    status="ACTIVE",
-                ),
-            ]
-            session.add_all(default_stations)
-            await session.commit()
-            logger.info("Initialized database with %d default AWS stations.", len(default_stations))
+        seed_stations = [
+            # Standard Regional Cluster
+            {"station_id": "AWS-001", "name": "Central Meteorological Observatory (New Delhi)", "latitude": 28.6139, "longitude": 77.2090, "elevation": 216.0, "status": "ACTIVE"},
+            {"station_id": "AWS-002", "name": "Coastal Marine Weather Tower (Mumbai)", "latitude": 18.9220, "longitude": 72.8347, "elevation": 14.0, "status": "ACTIVE"},
+            {"station_id": "AWS-003", "name": "Plateau Highland Station (Dharamshala)", "latitude": 32.2190, "longitude": 76.3234, "elevation": 1457.0, "status": "ACTIVE"},
+            {"station_id": "AWS-004", "name": "Arid Subtropical Outpost (Jaisalmer)", "latitude": 26.9124, "longitude": 70.9022, "elevation": 225.0, "status": "ACTIVE"},
+            # Global & Regional Synoptic Reference Stations
+            {"station_id": "PUNE-EXT-001", "name": "Pune Weather Observatory", "latitude": 18.5204, "longitude": 73.8567, "elevation": 560.0, "status": "ACTIVE"},
+            {"station_id": "DELHI-EXT-001", "name": "New Delhi Safdarjung Synoptic Site", "latitude": 28.6139, "longitude": 77.2090, "elevation": 216.0, "status": "ACTIVE"},
+            {"station_id": "LONDON-EXT-001", "name": "London Heathrow Synoptic Station", "latitude": 51.5074, "longitude": -0.1278, "elevation": 35.0, "status": "ACTIVE"},
+            {"station_id": "TOKYO-EXT-001", "name": "Tokyo JMA Observation Station", "latitude": 35.6762, "longitude": 139.6503, "elevation": 40.0, "status": "ACTIVE"},
+            {"station_id": "DV-EXT-001", "name": "Death Valley Furnace Creek Station", "latitude": 36.5323, "longitude": -116.9325, "elevation": -86.0, "status": "ACTIVE"},
+        ]
+
+        for s_data in seed_stations:
+            result = await session.execute(select(Station).where(Station.station_id == s_data["station_id"]))
+            existing = result.scalars().first()
+            if not existing:
+                st_obj = Station(**s_data)
+                session.add(st_obj)
+        
+        await session.commit()
+        logger.info("Validated and synchronized all AWS and Synoptic stations in database.")
 
 
 async def close_db() -> None:

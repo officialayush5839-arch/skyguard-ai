@@ -4,6 +4,7 @@
 
 import {
   AnomalyEvent,
+  AnomalyEventDetail,
   AnomalyStats,
   FleetHealthSummary,
   InferenceResult,
@@ -60,13 +61,18 @@ export async function fetchAnomalies(params?: {
   classification?: string;
   limit?: number;
   offset?: number;
-}): Promise<{ items: AnomalyEvent[]; total: number }> {
+  page?: number;
+  page_size?: number;
+  fleet_balanced?: boolean;
+}): Promise<{ items: AnomalyEvent[]; total: number; page?: number; page_size?: number }> {
   const query = new URLSearchParams();
   if (params?.station_id) query.append('station_id', params.station_id);
   if (params?.severity) query.append('severity', params.severity);
   if (params?.classification) query.append('classification', params.classification);
   if (params?.limit) query.append('limit', params.limit.toString());
-  if (params?.offset) query.append('offset', params.offset.toString());
+  if (params?.page_size) query.append('page_size', params.page_size.toString());
+  if (params?.page) query.append('page', params.page.toString());
+  if (params?.fleet_balanced !== undefined) query.append('fleet_balanced', params.fleet_balanced.toString());
 
   const res = await fetch(`${API_BASE_URL}/anomalies?${query.toString()}`);
   return handleResponse(res);
@@ -77,7 +83,7 @@ export async function fetchAnomalyStats(hours: number = 24): Promise<AnomalyStat
   return handleResponse(res);
 }
 
-export async function fetchAnomalyDetail(id: number): Promise<AnomalyEvent> {
+export async function fetchAnomalyDetail(id: number): Promise<AnomalyEventDetail> {
   const res = await fetch(`${API_BASE_URL}/anomalies/${id}`);
   return handleResponse(res);
 }

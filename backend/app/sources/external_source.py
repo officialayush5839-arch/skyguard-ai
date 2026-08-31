@@ -118,10 +118,25 @@ class ExternalWeatherDataSource(BaseDataSource):
         }
 
         t0 = time.perf_counter()
-        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-            response = await client.get(url, params=params)
-            response.raise_for_status()
-            data = response.json()
+        last_err = None
+        data = None
+        
+        for attempt in range(3):
+            try:
+                async with httpx.AsyncClient(timeout=max(self.timeout_seconds, 15.0)) as client:
+                    response = await client.get(url, params=params)
+                    response.raise_for_status()
+                    data = response.json()
+                    break
+            except Exception as e:
+                last_err = e
+                if attempt < 2:
+                    await asyncio.sleep(1.0 * (attempt + 1))
+                    
+        if data is None:
+            if last_err:
+                raise last_err
+            raise RuntimeError("Failed to obtain telemetry from Open-Meteo after 3 attempts")
 
         self._last_fetch_latency_ms = round((time.perf_counter() - t0) * 1000.0, 2)
         current = data.get("current", {})

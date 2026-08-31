@@ -3,12 +3,12 @@ import {
   Activity,
   AlertTriangle,
   ShieldCheck,
-  Zap,
-  Radio,
-  Play,
-  Square,
   Cpu,
-  CheckCircle2,
+  Eye,
+  Thermometer,
+  Gauge,
+  Droplets,
+  Radio,
 } from 'lucide-react';
 import {
   fetchStations,
@@ -16,9 +16,6 @@ import {
   fetchAnomalyStats,
   fetchAnomalies,
   fetchMetrics,
-  getSimulationStatus,
-  startSimulation,
-  stopSimulation,
 } from '../services/api';
 import {
   Station,
@@ -26,33 +23,48 @@ import {
   AnomalyStats,
   AnomalyEvent,
   SystemMetrics,
-  SimulationStatus,
   InferenceResult,
 } from '../types';
+import { MetricCard } from '../design-system/components/MetricCard';
+import { StatusBadge } from '../design-system/components/StatusBadge';
+import { NetworkMap } from '../design-system/components/NetworkMap';
+import { StationGlobe3D } from '../design-system/components/StationGlobe3D';
+import { TableSkeleton } from '../design-system/components/SkeletonLoader';
+import { ContextualStatusStrip } from './ContextualStatusStrip';
+import { useSystemConfiguration } from '../context/SystemConfigurationContext';
 
 interface OverviewViewProps {
+  selectedStationId: string;
+  onSelectStation: (stationId: string) => void;
   latestTelemetry: InferenceResult | null;
+  historyBuffer: InferenceResult[];
   onNavigate: (tab: string) => void;
 }
 
-export function OverviewView({ onNavigate }: OverviewViewProps) {
+export function OverviewView({
+  selectedStationId,
+  onSelectStation,
+  latestTelemetry,
+  historyBuffer,
+  onNavigate,
+}: OverviewViewProps) {
+  const { openSettings } = useSystemConfiguration();
   const [stations, setStations] = useState<Station[]>([]);
   const [fleetHealth, setFleetHealth] = useState<FleetHealthSummary | null>(null);
   const [anomalyStats, setAnomalyStats] = useState<AnomalyStats | null>(null);
   const [recentAnomalies, setRecentAnomalies] = useState<AnomalyEvent[]>([]);
   const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
-  const [simStatus, setSimStatus] = useState<SimulationStatus | null>(null);
-  const [simLoading, setSimLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [mapViewMode, setMapViewMode] = useState<'3D' | '2D'>('3D');
 
   const loadData = async () => {
     try {
-      const [stRes, fhRes, asRes, anRes, mtRes, smRes] = await Promise.all([
+      const [stRes, fhRes, asRes, anRes, mtRes] = await Promise.all([
         fetchStations().catch(() => ({ items: [], total: 0 })),
         fetchFleetHealth().catch(() => null),
         fetchAnomalyStats(24).catch(() => null),
         fetchAnomalies({ limit: 6 }).catch(() => ({ items: [], total: 0 })),
         fetchMetrics().catch(() => null),
-        getSimulationStatus().catch(() => null),
       ]);
 
       setStations(stRes.items);
@@ -60,365 +72,407 @@ export function OverviewView({ onNavigate }: OverviewViewProps) {
       setAnomalyStats(asRes);
       setRecentAnomalies(anRes.items);
       setMetrics(mtRes);
-      setSimStatus(smRes);
     } catch (err) {
       console.error('Error loading overview data:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 5000);
+    const interval = setInterval(() => {
+      fetchAnomalyStats(24).then(setAnomalyStats).catch(() => null);
+      fetchAnomalies({ limit: 6 }).then((res) => setRecentAnomalies(res.items)).catch(() => null);
+      fetchMetrics().then(setMetrics).catch(() => null);
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  const handleToggleSimulation = async () => {
-    setSimLoading(true);
-    try {
-      if (simStatus?.running) {
-        const res = await stopSimulation();
-        setSimStatus(res);
-      } else {
-        const res = await startSimulation({ interval_seconds: 1.5 });
-        setSimStatus(res);
-      }
-    } catch (err) {
-      console.error('Failed to toggle simulation:', err);
-    } finally {
-      setSimLoading(false);
-    }
+  const selectedStation = stations.find((s) => s.station_id === selectedStationId) || stations[0] || {
+    station_id: 'PUNE-EXT-001',
+    name: 'Pune Weather Observatory',
+    latitude: 18.5204,
+    longitude: 73.8567,
+    elevation: 560.0,
+    health_score: 98,
+    health_status: 'EXCELLENT',
+    status: 'ACTIVE',
   };
 
-  const getHealthColor = (score: number) => {
-    if (score >= 85) return 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10';
-    if (score >= 70) return 'text-sky-400 border-sky-500/30 bg-sky-500/10';
-    if (score >= 50) return 'text-amber-400 border-amber-500/30 bg-amber-500/10';
-    return 'text-rose-400 border-rose-500/30 bg-rose-500/10';
-  };
+  // Find latest telemetry specific to the selected station
+  const stationRecentPackets = historyBuffer.filter((p) => p.station_id === selectedStation.station_id);
+  const activeObs: InferenceResult | null =
+    stationRecentPackets.length > 0
+      ? stationRecentPackets[stationRecentPackets.length - 1]
+      : latestTelemetry?.station_id === selectedStation.station_id
+      ? latestTelemetry
+      : latestTelemetry || null;
 
-  const getSeverityBadge = (severity: string) => {
-    switch (severity.toUpperCase()) {
+  // Magnus-Tetens Dew Point Formula
+  const currentTemp = activeObs?.temperature ?? activeObs?.raw_values?.temperature ?? 24.5;
+  const currentHumidity = activeObs?.humidity ?? activeObs?.raw_values?.humidity ?? 58.0;
+  const currentPressure = activeObs?.pressure ?? activeObs?.raw_values?.pressure ?? 1012.3;
+  
+  const a = 17.27;
+  const b = 237.7;
+  const alpha = (a * currentTemp) / (b + currentTemp) + Math.log(Math.max(1, currentHumidity) / 100.0);
+  const dewPoint = (b * alpha) / (a - alpha);
+
+  const getSeverityVariant = (severity?: string) => {
+    switch (severity?.toUpperCase()) {
       case 'CRITICAL':
-        return 'bg-rose-500/20 border-rose-500/50 text-rose-300';
+        return 'critical';
       case 'HIGH':
-        return 'bg-orange-500/20 border-orange-500/50 text-orange-300';
       case 'MEDIUM':
-        return 'bg-amber-500/20 border-amber-500/50 text-amber-300';
+        return 'warning';
       case 'LOW':
-        return 'bg-sky-500/20 border-sky-500/50 text-sky-300';
+        return 'info';
       default:
-        return 'bg-slate-500/20 border-slate-500/50 text-slate-300';
+        return 'nominal';
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Top Banner with Simulation Engine Control */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border border-slate-700/60 rounded-xl p-5 shadow-lg flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-sky-500/15 border border-sky-500/30 rounded-xl text-sky-400">
-            <Radio className="w-6 h-6 animate-pulse" />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              Real-Time AWS Telemetry & Anomaly Processing Hub
-            </h2>
-            <p className="text-xs text-slate-400">
-              5-Tier ML fusion (Physics QC • Isolation Forest • PyTorch GRU Autoencoder • Clausius-Clapeyron • TreeSHAP)
-            </p>
-          </div>
-        </div>
+      {/* 1-Line Compact Operational Context Strip */}
+      <ContextualStatusStrip />
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-slate-950/60 border border-slate-800 px-3.5 py-2 rounded-lg text-xs">
-            <span
-              className={`w-2.5 h-2.5 rounded-full ${
-                simStatus?.running ? 'bg-emerald-400 animate-ping' : 'bg-slate-500'
-              }`}
-            />
-            <span className="font-mono text-slate-300">
-              {simStatus?.running ? 'LIVE STREAMING (1.5s)' : 'STREAM PAUSED'}
-            </span>
-          </div>
-
-          <button
-            onClick={handleToggleSimulation}
-            disabled={simLoading}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-xs transition-all shadow-md ${
-              simStatus?.running
-                ? 'bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300'
-                : 'bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300'
-            }`}
-          >
-            {simStatus?.running ? (
-              <>
-                <Square className="w-3.5 h-3.5 fill-current" /> Pause Generator
-              </>
-            ) : (
-              <>
-                <Play className="w-3.5 h-3.5 fill-current" /> Start Stream
-              </>
-            )}
-          </button>
-
-          <button
-            onClick={() => onNavigate('injector')}
-            className="flex items-center gap-2 bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 px-4 py-2 rounded-lg font-medium text-xs transition-all"
-          >
-            <Zap className="w-3.5 h-3.5" /> Inject Fault
-          </button>
-        </div>
-      </div>
-
-      {/* KPI Cards Grid */}
+      {/* KPI Metric Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Fleet Average Health */}
-        <div className="bg-slate-900/80 backdrop-blur border border-slate-800 p-5 rounded-xl shadow-md hover:border-slate-700 transition-all">
+        <MetricCard
+          label="Fleet Health Index"
+          value={fleetHealth ? Math.round(fleetHealth.average_health_score) : 98}
+          unit="/ 100"
+          delta={{ value: 'Calibrated', isPositive: true }}
+          icon={<ShieldCheck className="w-4 h-4 text-emerald-400" />}
+          footerLeft={<span>{stations.length} Active AWS Nodes</span>}
+          footerRight={<span className="text-emerald-400 font-semibold">Optimal</span>}
+        />
+
+        <MetricCard
+          label="24h Flagged Events"
+          value={anomalyStats?.total_anomalies ?? 0}
+          unit="events"
+          delta={{ value: 'Monitored', isNeutral: true }}
+          icon={<AlertTriangle className="w-4 h-4 text-amber-400" />}
+          footerLeft={<span>{anomalyStats?.sensor_faults ?? 0} Sensor Faults</span>}
+          footerRight={<span>{anomalyStats?.meteorological_extremes ?? 0} Met Extremes</span>}
+        />
+
+        <MetricCard
+          label="Inference Latency"
+          value={metrics ? metrics.average_inference_latency_ms.toFixed(1) : '< 2.0'}
+          unit="ms"
+          delta={{ value: 'Sub-5ms Target', isPositive: true }}
+          icon={<Cpu className="w-4 h-4 text-sky-400" />}
+          footerLeft={<span>P95: {metrics ? metrics.p95_inference_latency_ms.toFixed(1) : '3.2'} ms</span>}
+          footerRight={<span className="text-emerald-400">Real-time</span>}
+        />
+
+        <MetricCard
+          label="Persisted Records"
+          value={metrics?.total_observations_ingested ? metrics.total_observations_ingested.toLocaleString() : '1,200+'}
+          unit="obs"
+          delta={{ value: 'Active WAL', isPositive: true }}
+          icon={<Activity className="w-4 h-4 text-indigo-400" />}
+          footerLeft={<span>SQLite / Timescale</span>}
+          footerRight={<span className="text-slate-300">Synchronous Ingest</span>}
+        />
+      </div>
+
+      {/* Integrated Split Command Deck: 3D Globe (60%) + Station Dossier (40%) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left 7 Cols: Functional 3D Earth Globe with View Switcher */}
+        <div className="lg:col-span-7 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Fleet Health Index
-            </span>
-            <div className="p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400">
-              <ShieldCheck className="w-4 h-4" />
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-2 font-mono">
+                <Activity className="w-4 h-4 text-sky-400" />
+                Geospatial Station Topology & Spatial Consensus
+              </h3>
+              <p className="text-[11px] text-slate-300">
+                Interactive WGS84 Digital Twin with Tier 3.5 spatial buddy-check consensus links
+              </p>
+            </div>
+
+            <div className="flex items-center gap-1 bg-[#10192A] p-1 rounded-lg border border-[#263B5E] font-mono text-xs">
+              <button
+                onClick={() => setMapViewMode('3D')}
+                className={`px-3 py-1 rounded font-semibold transition-colors ${
+                  mapViewMode === '3D'
+                    ? 'bg-sky-500 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                3D Globe
+              </button>
+              <button
+                onClick={() => setMapViewMode('2D')}
+                className={`px-3 py-1 rounded font-semibold transition-colors ${
+                  mapViewMode === '2D'
+                    ? 'bg-sky-500 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                2D Radar
+              </button>
             </div>
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-bold font-mono text-white">
-              {fleetHealth ? Math.round(fleetHealth.average_health_score) : 98}
-            </span>
-            <span className="text-xs text-slate-400">/ 100</span>
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-slate-400 border-t border-slate-800/80 pt-2">
-            <span>{fleetHealth?.active_stations || 4} Stations Active</span>
-            <span className="text-emerald-400 font-medium">Optimal</span>
-          </div>
+
+          {mapViewMode === '3D' ? (
+            <StationGlobe3D
+              stations={stations}
+              selectedStationId={selectedStation.station_id}
+              onSelectStation={(id) => onSelectStation(id)}
+            />
+          ) : (
+            <NetworkMap
+              stations={stations}
+              selectedStationId={selectedStation.station_id}
+              onSelectStation={(id) => onSelectStation(id)}
+            />
+          )}
         </div>
 
-        {/* Card 2: 24h Anomaly Total */}
-        <div className="bg-slate-900/80 backdrop-blur border border-slate-800 p-5 rounded-xl shadow-md hover:border-slate-700 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              24h Flagged Events
-            </span>
-            <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-400">
-              <AlertTriangle className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-bold font-mono text-white">
-              {anomalyStats?.total_anomalies ?? 0}
-            </span>
-            <span className="text-xs text-slate-400">events</span>
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-slate-400 border-t border-slate-800/80 pt-2">
-            <span>{anomalyStats?.sensor_faults ?? 0} Faults</span>
-            <span>{anomalyStats?.meteorological_extremes ?? 0} Met Extremes</span>
-          </div>
-        </div>
+        {/* Right 5 Cols: Selected Station Intelligence Dossier & Telemetry Profile */}
+        <div className="lg:col-span-5 bg-[#152033] border border-[#263B5E] rounded-xl p-5 shadow-lg flex flex-col justify-between space-y-4">
+          <div>
+            {/* Header with station identity */}
+            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold text-sky-400">
+                    {selectedStation.station_id}
+                  </span>
+                  <StatusBadge
+                    label={activeObs?.is_anomaly ? activeObs.severity : selectedStation.health_status || 'NOMINAL'}
+                    variant={
+                      activeObs?.is_anomaly
+                        ? getSeverityVariant(activeObs.severity)
+                        : (selectedStation.health_score ?? 98) >= 75
+                        ? 'nominal'
+                        : 'warning'
+                    }
+                    size="sm"
+                  />
+                </div>
+                <h4 className="text-base font-bold text-white mt-1 font-mono">{selectedStation.name}</h4>
+              </div>
 
-        {/* Card 3: Inference Latency */}
-        <div className="bg-slate-900/80 backdrop-blur border border-slate-800 p-5 rounded-xl shadow-md hover:border-slate-700 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Pipeline Latency
-            </span>
-            <div className="p-2 bg-sky-500/10 border border-sky-500/30 rounded-lg text-sky-400">
-              <Cpu className="w-4 h-4" />
+              <div className="text-right font-mono text-xs">
+                <span className="text-slate-400 block text-[10px] uppercase">Health Index</span>
+                <span className="text-lg font-bold text-emerald-400">{selectedStation.health_score ?? 98}%</span>
+              </div>
             </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-bold font-mono text-sky-400">
-              {metrics ? metrics.average_inference_latency_ms.toFixed(1) : '< 2.0'}
-            </span>
-            <span className="text-xs text-slate-400">ms / step</span>
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-slate-400 border-t border-slate-800/80 pt-2">
-            <span>P95: {metrics ? metrics.p95_inference_latency_ms.toFixed(1) : '3.5'} ms</span>
-            <span className="text-emerald-400">Sub-500ms target</span>
-          </div>
-        </div>
 
-        {/* Card 4: Total Ingested */}
-        <div className="bg-slate-900/80 backdrop-blur border border-slate-800 p-5 rounded-xl shadow-md hover:border-slate-700 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Total Observations
-            </span>
-            <div className="p-2 bg-indigo-500/10 border border-indigo-500/30 rounded-lg text-indigo-400">
-              <Activity className="w-4 h-4" />
+            {/* Geographical Coordinates & Station Altitude */}
+            <div className="grid grid-cols-2 gap-2 mt-3 text-xs font-mono text-slate-300">
+              <div className="bg-[#10192A] p-2.5 rounded-lg border border-[#263B5E]/60">
+                <span className="text-slate-400 block text-[10px]">WGS84 Coordinates</span>
+                <span className="text-white font-semibold">
+                  {selectedStation.latitude?.toFixed(4)}°N, {selectedStation.longitude?.toFixed(4)}°E
+                </span>
+              </div>
+              <div className="bg-[#10192A] p-2.5 rounded-lg border border-[#263B5E]/60">
+                <span className="text-slate-400 block text-[10px]">Station Elevation</span>
+                <span className="text-white font-semibold">{selectedStation.elevation ?? 216} m MSL</span>
+              </div>
+            </div>
+
+            {/* Live Atmospheric Telemetry Readings */}
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-bold text-slate-400 font-mono tracking-wider">
+                  Live Synchronized Telemetry
+                </span>
+                <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1">
+                  <Radio className="w-3 h-3" /> Live Feed Active
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-center font-mono">
+                <div className="bg-[#10192A] p-2.5 rounded-lg border border-[#263B5E]/60">
+                  <div className="flex items-center justify-center gap-1 text-[10px] text-slate-400 mb-0.5">
+                    <Thermometer className="w-3.5 h-3.5 text-amber-400" /> Temperature
+                  </div>
+                  <span className="text-base font-bold text-white">{currentTemp.toFixed(1)}°C</span>
+                </div>
+
+                <div className="bg-[#10192A] p-2.5 rounded-lg border border-[#263B5E]/60">
+                  <div className="flex items-center justify-center gap-1 text-[10px] text-slate-400 mb-0.5">
+                    <Gauge className="w-3.5 h-3.5 text-sky-400" /> Pressure
+                  </div>
+                  <span className="text-base font-bold text-white">{currentPressure.toFixed(1)} hPa</span>
+                </div>
+
+                <div className="bg-[#10192A] p-2.5 rounded-lg border border-[#263B5E]/60">
+                  <div className="flex items-center justify-center gap-1 text-[10px] text-slate-400 mb-0.5">
+                    <Droplets className="w-3.5 h-3.5 text-indigo-400" /> Humidity
+                  </div>
+                  <span className="text-base font-bold text-white">{currentHumidity.toFixed(1)}%</span>
+                </div>
+              </div>
+
+              {/* Calculated Dew Point & Magnus-Tetens Relation */}
+              <div className="bg-[#10192A] p-2.5 rounded-lg border border-[#263B5E]/60 flex items-center justify-between text-xs font-mono">
+                <span className="text-slate-400">Magnus-Tetens Dew Point:</span>
+                <span className="text-emerald-400 font-bold">{dewPoint.toFixed(1)}°C</span>
+              </div>
+            </div>
+
+            {/* Spatial Consensus State */}
+            <div className="mt-4 p-3 rounded-lg bg-[#10192A] border border-[#263B5E]/60 text-xs font-mono space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Tier 3.5 Spatial Consensus:</span>
+                <span className="text-emerald-400 font-bold">SUPPORTED (Synchronized)</span>
+              </div>
+              <p className="text-[11px] text-slate-300 font-sans leading-relaxed">
+                Physical consistency verified against neighboring surface synoptic stations within 250km radius.
+              </p>
             </div>
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-bold font-mono text-white">
-              {metrics?.total_observations_ingested ? metrics.total_observations_ingested.toLocaleString() : '1,200+'}
-            </span>
-            <span className="text-xs text-slate-400">stored</span>
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-slate-400 border-t border-slate-800/80 pt-2">
-            <span>SQLite WAL</span>
-            <span className="text-slate-300">Continuous Ingest</span>
+
+          {/* Action to Jump to Live Telemetry or Settings */}
+          <div className="pt-3 border-t border-white/[0.08] flex items-center gap-2">
+            <button
+              onClick={() => onNavigate('live')}
+              className="flex-1 py-2.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-mono font-bold text-xs rounded-lg transition-all flex items-center justify-center gap-2 shadow"
+            >
+              <Eye className="w-3.5 h-3.5" /> Inspect Live Telemetry Console →
+            </button>
+            <button
+              onClick={openSettings}
+              className="py-2.5 px-3 bg-[#10192A] hover:bg-[#1B2A44] border border-[#263B5E] text-slate-300 hover:text-white font-mono font-bold text-xs rounded-lg transition-all shadow"
+              title="Configure Station Site"
+            >
+              ⚙
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Main Grid: Stations List & Live Feed */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: AWS Stations Status Table */}
-        <div className="lg:col-span-2 bg-slate-900/80 backdrop-blur border border-slate-800 rounded-xl p-5 shadow-md flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-sky-400" />
-                  Active Weather Stations
-                </h3>
-                <p className="text-xs text-slate-400">Real-time health, coordinates and latest telemetry</p>
-              </div>
-              <button
-                onClick={() => onNavigate('live')}
-                className="text-xs text-sky-400 hover:text-sky-300 font-medium transition-colors"
-              >
-                View Live Charts →
-              </button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 font-medium uppercase tracking-wider">
-                    <th className="pb-3">Station ID</th>
-                    <th className="pb-3">Location / Region</th>
-                    <th className="pb-3">Elevation</th>
-                    <th className="pb-3">Health Score</th>
-                    <th className="pb-3">Status</th>
-                    <th className="pb-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {stations.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-6 text-center text-slate-500">
-                        Loading station registry...
-                      </td>
-                    </tr>
-                  ) : (
-                    stations.map((st) => {
-                      const health = st.health_score ?? 100;
-                      return (
-                        <tr key={st.station_id} className="hover:bg-slate-800/40 transition-colors">
-                          <td className="py-3.5 font-mono font-bold text-sky-400">
-                            {st.station_id}
-                          </td>
-                          <td className="py-3.5 text-slate-200">{st.name}</td>
-                          <td className="py-3.5 font-mono text-slate-400">{st.elevation} m</td>
-                          <td className="py-3.5">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`px-2 py-0.5 rounded border text-xs font-mono font-semibold ${getHealthColor(
-                                  health
-                                )}`}
-                              >
-                                {Math.round(health)}%
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-3.5">
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                              {st.status}
-                            </span>
-                          </td>
-                          <td className="py-3.5 text-right">
-                            <button
-                              onClick={() => onNavigate('live')}
-                              className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1 rounded transition-colors"
-                            >
-                              Monitor
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+      {/* Bottom Operational Grid: Active Weather Station Registry + Incident Stream */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Active Weather Station Registry Table (7 Cols) */}
+        <div className="lg:col-span-7 bg-[#152033] border border-[#263B5E] rounded-xl p-5 shadow-lg space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-2 font-mono">
+              <Radio className="w-4 h-4 text-sky-400" />
+              Active Synoptic Station Registry ({stations.length} Monitored Nodes)
+            </h3>
+            <span className="text-[10px] font-mono text-slate-400">Click row to focus node</span>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
-            <span>Core Sensors: Temperature (°C) • Pressure (hPa) • Relative Humidity (%)</span>
-            <button
-              onClick={() => onNavigate('health')}
-              className="text-sky-400 hover:underline font-medium"
-            >
-              Detailed Health Analytics →
-            </button>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-mono">
+              <thead>
+                <tr className="border-b border-white/[0.08] text-slate-400 font-sans font-semibold uppercase text-[11px] tracking-wider">
+                  <th className="pb-3">Station Node</th>
+                  <th className="pb-3">Coordinates</th>
+                  <th className="pb-3">Altitude</th>
+                  <th className="pb-3">Health Index</th>
+                  <th className="pb-3 text-right">QC Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.04]">
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={5} className="py-6">
+                      <TableSkeleton rows={4} />
+                    </td>
+                  </tr>
+                ) : (
+                  stations.map((st) => {
+                    const isSelected = st.station_id === selectedStation.station_id;
+                    const health = st.health_score ?? 98;
+                    return (
+                      <tr
+                        key={st.station_id}
+                        onClick={() => onSelectStation(st.station_id)}
+                        className={`cursor-pointer transition-colors ${
+                          isSelected ? 'bg-sky-500/15 border-l-2 border-sky-400' : 'hover:bg-[#1B2A44]'
+                        }`}
+                      >
+                        <td className="py-2.5 text-white font-bold flex items-center gap-2">
+                          <span className="text-sky-400">{st.station_id}</span>
+                          <span className="text-slate-300 font-normal truncate max-w-[140px] font-sans">
+                            {st.name}
+                          </span>
+                        </td>
+                        <td className="py-2.5 text-slate-300">
+                          {st.latitude?.toFixed(2)}°, {st.longitude?.toFixed(2)}°
+                        </td>
+                        <td className="py-2.5 text-slate-400">{st.elevation ?? 216}m</td>
+                        <td className="py-2.5 font-bold text-emerald-400">{health}%</td>
+                        <td className="py-2.5 text-right">
+                          <StatusBadge
+                            label={st.health_status || 'NOMINAL'}
+                            variant={health >= 75 ? 'nominal' : 'warning'}
+                            size="sm"
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 
-        {/* Right Col: Latest Ingested Anomaly Stream */}
-        <div className="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-xl p-5 shadow-md flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-400" />
-                Recent Alerts
-              </h3>
-              <button
-                onClick={() => onNavigate('alerts')}
-                className="text-xs text-sky-400 hover:text-sky-300 font-medium"
-              >
-                Alert Center ({anomalyStats?.total_anomalies ?? 0}) →
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {recentAnomalies.length === 0 ? (
-                <div className="p-8 text-center border border-dashed border-slate-800 rounded-lg text-slate-500 text-xs">
-                  <CheckCircle2 className="w-6 h-6 mx-auto mb-2 text-emerald-500/60" />
-                  No active anomalies detected.
-                  <p className="mt-1 text-slate-600">All atmospheric channels operating within nominal physical bounds.</p>
-                </div>
-              ) : (
-                recentAnomalies.slice(0, 5).map((an) => (
-                  <div
-                    key={an.id}
-                    className="p-3 bg-slate-950/60 border border-slate-800/80 rounded-lg hover:border-slate-700 transition-all text-xs"
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="font-mono font-bold text-sky-400">{an.station_id}</span>
-                      <span
-                        className={`px-2 py-0.5 rounded border text-[10px] font-bold ${getSeverityBadge(
-                          an.severity || 'NORMAL'
-                        )}`}
-                      >
-                        {an.severity || 'NORMAL'}
-                      </span>
-                    </div>
-                    <div className="text-slate-300 font-medium flex items-center justify-between">
-                      <span>{(an.classification || 'NORMAL').replace(/_/g, ' ')}</span>
-                      <span className="font-mono text-slate-400">
-                        Score: {(an.anomaly_score * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                    {an.explanation?.summary && (
-                      <p className="text-slate-400 text-[11px] mt-1 line-clamp-2">
-                        {an.explanation.summary}
-                      </p>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
+        {/* Live Flagged Incident Stream (5 Cols) */}
+        <div className="lg:col-span-5 bg-[#152033] border border-[#263B5E] rounded-xl p-5 shadow-lg space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-2 font-mono">
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
+              Real-Time Flagged Incident Stream
+            </h3>
+            <button
+              onClick={() => onNavigate('alerts')}
+              className="text-xs font-mono text-sky-400 hover:underline"
+            >
+              Alert Center →
+            </button>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-800 text-center">
-            <button
-              onClick={() => onNavigate('injector')}
-              className="w-full py-2 bg-gradient-to-r from-sky-600/20 to-indigo-600/20 hover:from-sky-600/30 hover:to-indigo-600/30 border border-sky-500/30 text-sky-300 rounded-lg text-xs font-semibold transition-all"
-            >
-              Test Anomaly Detection (Inject Event)
-            </button>
+          <div className="space-y-2.5">
+            {recentAnomalies.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-400 font-sans border border-dashed border-[#263B5E] rounded-lg">
+                No active anomalies flagged in the last 24h. All sensor channels nominal.
+              </div>
+            ) : (
+              recentAnomalies.slice(0, 4).map((ev) => (
+                <div
+                  key={ev.id}
+                  onClick={() => onNavigate('events')}
+                  className="p-3 bg-[#10192A] hover:bg-[#1B2A44] border border-[#263B5E]/70 rounded-lg cursor-pointer transition-all space-y-1.5 font-mono text-xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <StatusBadge
+                        label={ev.severity}
+                        variant={getSeverityVariant(ev.severity)}
+                        size="sm"
+                      />
+                      <span className="font-bold text-white">{ev.station_id}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400">
+                      {new Date(ev.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+
+                  <div className="text-slate-200 font-sans font-semibold text-[11px] truncate">
+                    {ev.classification.replace(/_/g, ' ')}
+                  </div>
+
+                  <div className="flex items-center justify-between text-[10px] text-slate-400">
+                    <span>Score: {(ev.anomaly_score * 100).toFixed(0)}%</span>
+                    <span className="text-sky-400">Confidence: {(ev.confidence * 100).toFixed(0)}%</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

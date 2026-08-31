@@ -408,6 +408,8 @@ Real-time inference should be measurable rather than merely claimed.
 - [x] Data explorer
 - [x] Model metrics
 - [x] Anomaly Injector UI
+- [x] 3D Earth Geospatial Digital Twin (WGS84, PBR textures, Tier 3.5 consensus arcs)
+- [x] Global Settings & Configuration Center (6-panel slide-out drawer)
 
 ---
 

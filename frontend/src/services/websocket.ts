@@ -35,12 +35,20 @@ export class TelemetryStreamClient {
 
       this.ws.onmessage = (event) => {
         try {
-          const payload = JSON.parse(event.data);
-          // Only process telemetry/inference messages
-          if (payload && (payload.anomaly_score !== undefined || payload.station_id)) {
-            if (this.callbacks.onTelemetry) {
-              this.callbacks.onTelemetry(payload as InferenceResult);
+          const raw = JSON.parse(event.data);
+          let telemetry: InferenceResult | null = null;
+          
+          if (raw && raw.type === 'observation' && raw.data) {
+            telemetry = raw.data as InferenceResult;
+            if (!telemetry.station_id && raw.station_id) {
+              telemetry.station_id = raw.station_id;
             }
+          } else if (raw && (raw.anomaly_score !== undefined || raw.station_id || raw.temperature !== undefined)) {
+            telemetry = raw as InferenceResult;
+          }
+
+          if (telemetry && this.callbacks.onTelemetry) {
+            this.callbacks.onTelemetry(telemetry);
           }
         } catch (err) {
           console.warn('Malformed WebSocket message received:', err);

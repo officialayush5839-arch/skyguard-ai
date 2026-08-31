@@ -127,6 +127,7 @@ class AnomalyEventResponse(BaseModel):
 
 class AnomalyEventDetailResponse(AnomalyEventResponse):
     observation: Optional[ObservationResponse] = None
+    station: Optional[StationResponse] = None
 
 
 class AnomalyEventListResponse(BaseModel):

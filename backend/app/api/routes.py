@@ -276,8 +276,11 @@ async def get_anomalies(
     end_time: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
+    limit: Optional[int] = Query(None, description="Compatibility alias for page_size"),
+    fleet_balanced: bool = Query(True, description="When true and no station_id is specified, balances results across all stations to ensure fleet-wide visibility"),
     db: AsyncSession = Depends(get_db),
 ):
+    effective_page_size = limit if limit is not None else page_size
     repo = AnomalyRepository(db)
     items, total = await repo.get_paginated(
         station_id=station_id,
@@ -288,7 +291,8 @@ async def get_anomalies(
         end_time=end_time,
         min_score=min_score,
         page=page,
-        page_size=page_size,
+        page_size=effective_page_size,
+        fleet_balanced=fleet_balanced,
     )
 
     resp_items = [
@@ -360,7 +364,8 @@ async def get_active_alerts(
     ]
 
 
-@router.get("/anomalies/stats/summary", response_model=AnomalyStatsResponse, summary="Get anomaly statistics summary")
+@router.get("/anomalies/stats", response_model=AnomalyStatsResponse, summary="Get anomaly statistics summary")
+@router.get("/anomalies/stats/summary", response_model=AnomalyStatsResponse, summary="Get anomaly statistics summary (alias)")
 async def get_anomaly_stats(
     station_id: Optional[str] = Query(None),
     hours: int = Query(24, ge=1, le=720),
@@ -378,6 +383,7 @@ async def get_anomaly_detail(
 ):
     repo = AnomalyRepository(db)
     obs_repo = ObservationRepository(db)
+    station_repo = StationRepository(db)
 
     event = await repo.get_by_id(anomaly_id)
     if not event:
@@ -402,6 +408,23 @@ async def get_anomaly_detail(
         else None
     )
 
+    st = await station_repo.get_by_id(event.station_id)
+    st_resp = (
+        StationResponse(
+            id=st.id,
+            station_id=st.station_id,
+            name=st.name,
+            latitude=st.latitude,
+            longitude=st.longitude,
+            elevation=st.elevation,
+            status=st.status,
+            created_at=st.created_at,
+            updated_at=st.updated_at,
+        )
+        if st
+        else None
+    )
+
     return AnomalyEventDetailResponse(
         id=event.id,
         observation_id=event.observation_id,
@@ -421,6 +444,7 @@ async def get_anomaly_detail(
         raw_values=event.raw_values,
         created_at=event.created_at,
         observation=obs_resp,
+        station=st_resp,
     )
 
 
